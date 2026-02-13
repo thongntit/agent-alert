@@ -2,7 +2,6 @@ import SwiftUI
 
 struct MenuBarView: View {
     @StateObject private var notificationManager = NotificationManager.shared
-    @StateObject private var focusMonitor = FocusMonitor.shared
     
     var body: some View {
         VStack(spacing: 0) {
@@ -30,17 +29,6 @@ struct MenuBarView: View {
                 .font(.system(size: 16, weight: .semibold))
             
             Spacer()
-            
-            if focusMonitor.isTyping {
-                HStack(spacing: 4) {
-                    Circle()
-                        .fill(Color.orange)
-                        .frame(width: 8, height: 8)
-                    Text("Typing...")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary)
-                }
-            }
             
             Text("\(notificationManager.notifications.count)")
                 .font(.system(size: 12, weight: .bold))

@@ -24,7 +24,6 @@ struct SettingsView: View {
 struct GeneralSettingsView: View {
     @AppStorage("showOverlay") private var showOverlay = true
     @AppStorage("overlayDuration") private var overlayDuration = 3.0
-    @AppStorage("typingThreshold") private var typingThreshold = 1.5
     @AppStorage("playSound") private var playSound = true
     @AppStorage("selectedSound") private var selectedSound = "Glass"
     
@@ -35,8 +34,13 @@ struct GeneralSettingsView: View {
             Section("Notifications") {
                 Toggle("Show overlay notification", isOn: $showOverlay)
                 
-                VStack(alignment: .leading) {
-                    Text("Overlay duration: \(Int(overlayDuration)) seconds")
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text("Overlay duration")
+                        Spacer()
+                        Text("\(Int(overlayDuration))s")
+                            .foregroundColor(.secondary)
+                    }
                     Slider(value: $overlayDuration, in: 1...10, step: 1)
                 }
             }
@@ -50,23 +54,18 @@ struct GeneralSettingsView: View {
                             Text(sound).tag(sound)
                         }
                     }
+                    .pickerStyle(.menu)
                     
-                    Button("Preview Sound") {
-                        NSSound(named: NSSound.Name(selectedSound))?.play()
+                    HStack {
+                        Spacer()
+                        Button("Preview Sound") {
+                            NSSound(named: NSSound.Name(selectedSound))?.play()
+                        }
                     }
                 }
             }
-            
-            Section("Focus Detection") {
-                VStack(alignment: .leading) {
-                    Text("Typing threshold: \(typingThreshold, specifier: "%.1f") seconds")
-                    Slider(value: $typingThreshold, in: 0.5...5.0, step: 0.5)
-                }
-                Text("Notifications will be queued while you're typing")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
         }
+        .formStyle(.grouped)
         .padding()
     }
 }

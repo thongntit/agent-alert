@@ -7,7 +7,6 @@ class NotificationManager: ObservableObject {
     static let shared = NotificationManager()
     
     @Published var notifications: [AgenticNotification] = []
-    @Published var pendingNotifications: [AgenticNotification] = []
     @Published var showOverlay = false
     @Published var currentNotification: AgenticNotification?
     
@@ -15,7 +14,6 @@ class NotificationManager: ObservableObject {
     @AppStorage("selectedSound") private var selectedSound = "Glass"
     
     private var overlayTimer: Timer?
-    private var queueTimer: Timer?
     
     private init() {}
     
@@ -24,13 +22,7 @@ class NotificationManager: ObservableObject {
         
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
-            
-            if FocusMonitor.shared.isTyping {
-                self.pendingNotifications.append(notification)
-                self.scheduleQueueProcessing()
-            } else {
-                self.showNotification(notification)
-            }
+            self.showNotification(notification)
         }
     }
     
@@ -56,26 +48,6 @@ class NotificationManager: ObservableObject {
             notifications.insert(notification, at: 0)
         }
         currentNotification = nil
-        
-        processQueue()
-    }
-    
-    private func scheduleQueueProcessing() {
-        queueTimer?.invalidate()
-        queueTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            self?.processQueue()
-        }
-    }
-    
-    private func processQueue() {
-        if !FocusMonitor.shared.isTyping, let notification = pendingNotifications.first {
-            pendingNotifications.removeFirst()
-            showNotification(notification)
-            
-            if pendingNotifications.isEmpty {
-                queueTimer?.invalidate()
-            }
-        }
     }
     
     func clearAll() {

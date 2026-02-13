@@ -4,7 +4,6 @@ import SwiftUI
 struct AgentAlertApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var notificationManager = NotificationManager.shared
-    @StateObject private var focusMonitor = FocusMonitor.shared
     
     var body: some Scene {
         MenuBarExtra("AgentAlert", systemImage: "bell.fill") {
