@@ -7,13 +7,13 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		BA5B86FD2F3EF06500B518EC /* agentic-notifier.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "agentic-notifier.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BA5B86FD2F3EF06500B518EC /* agent-alert.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "agent-alert.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		BA5B86FF2F3EF06500B518EC /* agentic-notifier */ = {
+		BA5B86FF2F3EF06500B518EC /* agent-alert */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = "agentic-notifier";
+			path = "agent-alert";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -32,7 +32,7 @@
 		BA5B86F42F3EF06500B518EC = {
 			isa = PBXGroup;
 			children = (
-				BA5B86FF2F3EF06500B518EC /* agentic-notifier */,
+				BA5B86FF2F3EF06500B518EC /* agent-alert */,
 				BA5B86FE2F3EF06500B518EC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -40,7 +40,7 @@
 		BA5B86FE2F3EF06500B518EC /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				BA5B86FD2F3EF06500B518EC /* agentic-notifier.app */,
+				BA5B86FD2F3EF06500B518EC /* agent-alert.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -48,9 +48,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		BA5B86FC2F3EF06500B518EC /* agentic-notifier */ = {
+		BA5B86FC2F3EF06500B518EC /* agent-alert */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = BA5B87082F3EF06600B518EC /* Build configuration list for PBXNativeTarget "agentic-notifier" */;
+			buildConfigurationList = BA5B87082F3EF06600B518EC /* Build configuration list for PBXNativeTarget "agent-alert" */;
 			buildPhases = (
 				BA5B86F92F3EF06500B518EC /* Sources */,
 				BA5B86FA2F3EF06500B518EC /* Frameworks */,
@@ -61,13 +61,13 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				BA5B86FF2F3EF06500B518EC /* agentic-notifier */,
+				BA5B86FF2F3EF06500B518EC /* agent-alert */,
 			);
-			name = "agentic-notifier";
+			name = "agent-alert";
 			packageProductDependencies = (
 			);
 			productName = "agentic-notifier";
-			productReference = BA5B86FD2F3EF06500B518EC /* agentic-notifier.app */;
+			productReference = BA5B86FD2F3EF06500B518EC /* agent-alert.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -85,7 +85,7 @@
 					};
 				};
 			};
-			buildConfigurationList = BA5B86F82F3EF06500B518EC /* Build configuration list for PBXProject "agentic-notifier" */;
+			buildConfigurationList = BA5B86F82F3EF06500B518EC /* Build configuration list for PBXProject "agent-alert" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -99,7 +99,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				BA5B86FC2F3EF06500B518EC /* agentic-notifier */,
+				BA5B86FC2F3EF06500B518EC /* agent-alert */,
 			);
 		};
 /* End PBXProject section */
@@ -255,7 +255,9 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "agentic-notifier/Info.plist";
+				INFOPLIST_FILE = "agent-alert/Info.plist";
+				"INFOPLIST_FILE[sdk=*]" = "agent-alert/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = I;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -287,7 +289,8 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "agentic-notifier/Info.plist";
+				INFOPLIST_FILE = "agent-alert/Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = I;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -310,7 +313,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		BA5B86F82F3EF06500B518EC /* Build configuration list for PBXProject "agentic-notifier" */ = {
+		BA5B86F82F3EF06500B518EC /* Build configuration list for PBXProject "agent-alert" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BA5B87062F3EF06600B518EC /* Debug */,
@@ -319,7 +322,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		BA5B87082F3EF06600B518EC /* Build configuration list for PBXNativeTarget "agentic-notifier" */ = {
+		BA5B87082F3EF06600B518EC /* Build configuration list for PBXNativeTarget "agent-alert" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				BA5B87092F3EF06600B518EC /* Debug */,
