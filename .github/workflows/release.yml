@@ -28,16 +28,16 @@ jobs:
       - name: Create DMG
         run: |
           mkdir -p dmg_temp
-          cp -r build/Build/Products/Release/agentic-notifier.app dmg_temp/
+          cp -r build/Build/Products/Release/agent-alert.app dmg_temp/
           ln -sf /Applications dmg_temp/Applications
-          hdiutil create -volname "agentic-notifier" \
+          hdiutil create -volname "agent-alert" \
             -srcfolder dmg_temp \
             -ov -format UDZO \
-            agentic-notifier.dmg
+            agent-alert.dmg
 
       - name: Upload DMG to Release
         uses: softprops/action-gh-release@v1
         with:
-          files: agentic-notifier.dmg
+          files: agent-alert.dmg
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
