@@ -198,9 +198,11 @@ struct CodeBlockView: View {
 }
 
 struct AboutView: View {
+    @ObservedObject var notificationManager = NotificationManager.shared
+    
     var body: some View {
         VStack(spacing: 20) {
-            Image(systemName: "bell.badge")
+            Image(systemName: notificationManager.menubarIcon)
                 .font(.system(size: 64))
                 .foregroundColor(.blue)
             
@@ -219,22 +221,28 @@ struct AboutView: View {
             
             Spacer()
             
-            VStack(spacing: 8) {
+            VStack(spacing: 12) {
                 Text("Test Notifications")
                     .font(.headline)
                 
-                HStack {
-                    Button("Test Claude") {
-                        URLSchemeHandler.shared.handleNotificationURL(
-                            components: URLComponents(string: "?source=claude&type=attention&message=Test notification")
-                        )
+                Button("Test Notification") {
+                    notificationManager.handleNotification(
+                        source: .claude,
+                        type: .complete,
+                        message: "Test notification"
+                    )
+                }
+                .buttonStyle(.borderedProminent)
+                
+                HStack(spacing: 12) {
+                    Button("Mark All Read") {
+                        notificationManager.markAllAsRead()
                     }
                     
-                    Button("Test OpenCode") {
-                        URLSchemeHandler.shared.handleNotificationURL(
-                            components: URLComponents(string: "?source=opencode&type=complete&message=Test notification")
-                        )
+                    Button("Clear All") {
+                        notificationManager.clearAll()
                     }
+                    .foregroundColor(.red)
                 }
             }
             .padding()

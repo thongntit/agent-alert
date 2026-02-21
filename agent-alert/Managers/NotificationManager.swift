@@ -59,4 +59,15 @@ class NotificationManager: ObservableObject {
             notifications[index].isRead = true
         }
     }
+    
+    var menubarIcon: String {
+        let hasUnread = !notifications.filter { !$0.isRead }.isEmpty || currentNotification != nil
+        return hasUnread ? "bell.badge.fill" : "bell.fill"
+    }
+    
+    func markAllAsRead() {
+        for i in 0..<notifications.count {
+            notifications[i].isRead = true
+        }
+    }
 }
