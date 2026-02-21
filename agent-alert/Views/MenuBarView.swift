@@ -3,6 +3,10 @@ import SwiftUI
 struct MenuBarView: View {
     @StateObject private var notificationManager = NotificationManager.shared
     
+    @State private var isClearAllHovered = false
+    @State private var isSettingsHovered = false
+    @State private var isQuitHovered = false
+    
     var body: some View {
         VStack(spacing: 0) {
             headerView
@@ -25,17 +29,10 @@ struct MenuBarView: View {
     
     private var headerView: some View {
         HStack {
-            Text("AgentAlert")
+            Text("Agent Alert")
                 .font(.system(size: 16, weight: .semibold))
             
             Spacer()
-            
-            Text("\(notificationManager.notifications.count)")
-                .font(.system(size: 12, weight: .bold))
-                .foregroundColor(.white)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(Capsule().fill(Color.blue))
         }
         .padding()
         .background(Color(NSColor.windowBackgroundColor))
@@ -49,10 +46,6 @@ struct MenuBarView: View {
             
             Text("No notifications")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.secondary)
-            
-            Text("Waiting for Claude Code or OpenCode...")
-                .font(.system(size: 12))
                 .foregroundColor(.secondary)
         }
         .frame(height: 200)
@@ -77,12 +70,35 @@ struct MenuBarView: View {
                 notificationManager.clearAll()
             }
             .buttonStyle(.plain)
-            .foregroundColor(.red)
+            .foregroundColor(isClearAllHovered ? .primary : .secondary)
+            .onHover { hovering in
+                isClearAllHovered = hovering
+            }
             
             Spacer()
             
-            SettingsLink {
-                Text("Settings")
+            HStack(spacing: 16) {
+                SettingsLink {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 14))
+                        .foregroundColor(isSettingsHovered ? .primary : .secondary)
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    isSettingsHovered = hovering
+                }
+                
+                Button {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    Image(systemName: "power")
+                        .font(.system(size: 14))
+                        .foregroundColor(isQuitHovered ? .primary : .secondary)
+                }
+                .buttonStyle(.plain)
+                .onHover { hovering in
+                    isQuitHovered = hovering
+                }
             }
         }
         .padding()
