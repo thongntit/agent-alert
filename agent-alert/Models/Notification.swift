@@ -20,7 +20,6 @@ enum NotificationSource: String, Codable {
 }
 
 enum NotificationType: String, Codable {
-    case attention = "attention"
     case complete = "complete"
     case permission = "permission"
     case question = "question"
@@ -28,7 +27,6 @@ enum NotificationType: String, Codable {
     
     var color: String {
         switch self {
-        case .attention: return "#FF6B6B"
         case .complete: return "#4ECDC4"
         case .permission: return "#FFE66D"
         case .question: return "#95E1D3"
@@ -38,7 +36,6 @@ enum NotificationType: String, Codable {
     
     var icon: String {
         switch self {
-        case .attention: return "exclamationmark.triangle.fill"
         case .complete: return "checkmark.circle.fill"
         case .permission: return "lock.shield.fill"
         case .question: return "questionmark.circle.fill"

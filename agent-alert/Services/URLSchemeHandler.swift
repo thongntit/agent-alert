@@ -44,7 +44,7 @@ class URLSchemeHandler {
         guard let queryItems = components?.queryItems else { return }
         
         let sourceString = queryItems.first(where: { $0.name == "source" })?.value ?? "claude"
-        let typeString = queryItems.first(where: { $0.name == "type" })?.value ?? "attention"
+        let typeString = queryItems.first(where: { $0.name == "type" })?.value ?? "complete"
         let message = queryItems.first(where: { $0.name == "message" })?.value ?? "Notification received"
         
         guard let source = NotificationSource(rawValue: sourceString),
@@ -58,7 +58,7 @@ class URLSchemeHandler {
     private func handleTestNotification() {
         NotificationManager.shared.handleNotification(
             source: .claude,
-            type: .attention,
+            type: .complete,
             message: "Test notification from AgenticNotifier"
         )
     }

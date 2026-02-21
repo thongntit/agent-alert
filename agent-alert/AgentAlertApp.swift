@@ -6,7 +6,7 @@ struct AgentAlertApp: App {
     @StateObject private var notificationManager = NotificationManager.shared
     
     var body: some Scene {
-        MenuBarExtra("AgentAlert", systemImage: "bell.fill") {
+        MenuBarExtra("AgentAlert", systemImage: notificationManager.menubarIcon) {
             MenuBarView()
         }
         .menuBarExtraStyle(.window)
