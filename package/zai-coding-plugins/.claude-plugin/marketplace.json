@@ -1,0 +1,24 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "zai-coding-plugins",
+  "version": "0.0.1",
+  "description": "A collection of plugins developed by Z.ai to enhance coding productivity and workflows.",
+  "owner": {
+    "name": "Z.ai",
+    "email": "user_feedback@z.ai"
+  },
+  "plugins": [
+    {
+      "name": "glm-plan-usage",
+      "source": "./plugins/glm-plan-usage",
+      "category": "development",
+      "description": "Query quota and usage statistics for GLM Coding Plan service."
+    },
+    {
+      "name": "glm-plan-bug",
+      "source": "./plugins/glm-plan-bug",
+      "category": "development",
+      "description": "Submit case feedback and bug reports for GLM Coding Plan service."
+    }
+  ]
+}
