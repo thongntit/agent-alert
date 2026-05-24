@@ -16,11 +16,20 @@ class NotificationManager: ObservableObject {
     @AppStorage("selectedSound") private var selectedSound = "Glass"
     @AppStorage("notificationStyle") private var notificationStyleRaw = NotificationStyle.overlay.rawValue
     @AppStorage("overlayDuration") private var overlayDuration = 3.0
+    @AppStorage("quietHoursEnabled") private var quietHoursEnabled = false
+    @AppStorage("quietHoursStartMinutes") private var quietHoursStartMinutes = 21 * 60
+    @AppStorage("quietHoursEndMinutes") private var quietHoursEndMinutes = 9 * 60
 
     private var overlayTimer: Timer?
 
     private var notificationStyle: NotificationStyle {
         NotificationStyle(rawValue: notificationStyleRaw) ?? .overlay
+    }
+
+    private var isWithinQuietHours: Bool {
+        guard quietHoursEnabled else { return false }
+        let schedule = QuietHours(startMinutes: quietHoursStartMinutes, endMinutes: quietHoursEndMinutes)
+        return schedule.contains(Date())
     }
 
     private init() {}
@@ -54,6 +63,12 @@ class NotificationManager: ObservableObject {
     }
 
     private func showNotification(_ notification: AgenticNotification) {
+        if isWithinQuietHours {
+            AppLogger.shared.info("Quiet hours active; history-only", category: .display)
+            appendToHistory(notification)
+            return
+        }
+
         switch notificationStyle {
         case .overlay:
             currentNotification = notification

@@ -36,6 +36,9 @@ struct GeneralSettingsView: View {
     @AppStorage("overlayDuration") private var overlayDuration = 3.0
     @AppStorage("playSound") private var playSound = true
     @AppStorage("selectedSound") private var selectedSound = "Glass"
+    @AppStorage("quietHoursEnabled") private var quietHoursEnabled = false
+    @AppStorage("quietHoursStartMinutes") private var quietHoursStartMinutes = 21 * 60
+    @AppStorage("quietHoursEndMinutes") private var quietHoursEndMinutes = 9 * 60
 
     @StateObject private var serverManager = HTTPServerManager.shared
     @StateObject private var launchAtLoginService = LaunchAtLoginService.shared
@@ -55,6 +58,21 @@ struct GeneralSettingsView: View {
     }
 
     let availableSounds = ["Glass", "Ping", "Pop", "Purr", "Blow", "Hero", "Submarine"]
+
+    private func timeBinding(for minutes: Binding<Int>) -> Binding<Date> {
+        Binding(
+            get: {
+                var components = DateComponents()
+                components.hour = minutes.wrappedValue / 60
+                components.minute = minutes.wrappedValue % 60
+                return Calendar.current.date(from: components) ?? Date()
+            },
+            set: { newDate in
+                let parts = Calendar.current.dateComponents([.hour, .minute], from: newDate)
+                minutes.wrappedValue = (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+            }
+        )
+    }
 
     var body: some View {
         Form {
@@ -120,6 +138,28 @@ struct GeneralSettingsView: View {
                             .font(.caption)
                         }
                     }
+                }
+            }
+
+            Section("Quiet Hours") {
+                Toggle("Enable quiet hours", isOn: $quietHoursEnabled)
+
+                if quietHoursEnabled {
+                    DatePicker(
+                        "From",
+                        selection: timeBinding(for: $quietHoursStartMinutes),
+                        displayedComponents: .hourAndMinute
+                    )
+
+                    DatePicker(
+                        "Until",
+                        selection: timeBinding(for: $quietHoursEndMinutes),
+                        displayedComponents: .hourAndMinute
+                    )
+
+                    Text("During quiet hours, notifications are saved to history without showing an overlay, system banner, or playing a sound.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
 
