@@ -16,8 +16,13 @@ class NotificationManager: ObservableObject {
     @AppStorage("selectedSound") private var selectedSound = "Glass"
     @AppStorage("notificationStyle") private var notificationStyleRaw = NotificationStyle.overlay.rawValue
     @AppStorage("overlayDuration") private var overlayDuration = 3.0
+    @AppStorage("dedupEnabled") private var dedupEnabled = true
+    @AppStorage("dedupWindowSeconds") private var dedupWindowSeconds = 5.0
 
     private var overlayTimer: Timer?
+
+    private var lastFingerprint: String?
+    private var lastFingerprintAt: Date?
 
     private var notificationStyle: NotificationStyle {
         NotificationStyle(rawValue: notificationStyleRaw) ?? .overlay
@@ -54,6 +59,12 @@ class NotificationManager: ObservableObject {
     }
 
     private func showNotification(_ notification: AgenticNotification) {
+        if isDuplicate(of: notification) {
+            AppLogger.shared.info("Suppressed duplicate within \(Int(dedupWindowSeconds))s window", category: .notification)
+            return
+        }
+        recordFingerprint(for: notification)
+
         switch notificationStyle {
         case .overlay:
             currentNotification = notification
@@ -79,6 +90,22 @@ class NotificationManager: ObservableObject {
             AppLogger.shared.info("Notification style off; history-only", category: .display)
             appendToHistory(notification)
         }
+    }
+
+    private func fingerprint(for notification: AgenticNotification) -> String {
+        "\(notification.source.rawValue)|\(notification.type.rawValue)|\(notification.message)"
+    }
+
+    private func isDuplicate(of notification: AgenticNotification) -> Bool {
+        guard dedupEnabled, dedupWindowSeconds > 0 else { return false }
+        guard let lastFingerprint, let lastFingerprintAt else { return false }
+        guard fingerprint(for: notification) == lastFingerprint else { return false }
+        return Date().timeIntervalSince(lastFingerprintAt) <= dedupWindowSeconds
+    }
+
+    private func recordFingerprint(for notification: AgenticNotification) {
+        lastFingerprint = fingerprint(for: notification)
+        lastFingerprintAt = Date()
     }
 
     private func playInAppSoundIfEnabled() {

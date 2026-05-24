@@ -37,6 +37,8 @@ struct GeneralSettingsView: View {
     @AppStorage("playSound") private var playSound = true
     @AppStorage("selectedSound") private var selectedSound = "Glass"
     @AppStorage("showMenubarUsage") private var showMenubarUsage = true
+    @AppStorage("dedupEnabled") private var dedupEnabled = true
+    @AppStorage("dedupWindowSeconds") private var dedupWindowSeconds = 5.0
 
     @StateObject private var serverManager = HTTPServerManager.shared
     @StateObject private var launchAtLoginService = LaunchAtLoginService.shared
@@ -129,6 +131,26 @@ struct GeneralSettingsView: View {
                             .font(.caption)
                         }
                     }
+                }
+            }
+
+            Section("Deduplication") {
+                Toggle("Suppress repeat notifications", isOn: $dedupEnabled)
+
+                if dedupEnabled {
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack {
+                            Text("Window")
+                            Spacer()
+                            Text("\(Int(dedupWindowSeconds))s")
+                                .foregroundColor(.secondary)
+                        }
+                        Slider(value: $dedupWindowSeconds, in: 1...30, step: 1)
+                    }
+
+                    Text("Identical notifications (same source, type, and message) arriving within this window are skipped.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
                 }
             }
 
