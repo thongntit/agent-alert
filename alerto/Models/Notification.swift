@@ -2,6 +2,7 @@ import Foundation
 
 enum NotificationSource: String, Codable, CaseIterable {
     case claude = "claude"
+    case codex = "codex"
     case opencode = "opencode"
     case cursor = "cursor"
     case windsurf = "windsurf"
@@ -10,6 +11,7 @@ enum NotificationSource: String, Codable, CaseIterable {
     var displayName: String {
         switch self {
         case .claude: return "Claude Code"
+        case .codex: return "Codex"
         case .opencode: return "OpenCode"
         case .cursor: return "Cursor"
         case .windsurf: return "Windsurf"
@@ -20,6 +22,7 @@ enum NotificationSource: String, Codable, CaseIterable {
     var icon: String {
         switch self {
         case .claude: return "brain.head.profile"
+        case .codex: return "terminal.fill"
         case .opencode: return "chevron.left.forwardslash.chevron.right"
         case .cursor: return "cursorarrow"
         case .windsurf: return "wind"
@@ -65,7 +68,7 @@ enum NotificationType: String, Codable, CaseIterable {
     }
 }
 
-/// Represents which Claude Code hook triggered the notification
+/// Represents which agent lifecycle hook triggered the notification
 enum HookType: String, Codable {
     case notification = "Notification"
     case stop = "Stop"
@@ -75,15 +78,24 @@ enum HookType: String, Codable {
     case permissionRequest = "PermissionRequest"
     case unknown = "unknown"
 
-    var contextTitle: String? {
-        switch self {
-        case .notification: return "Claude needs your input"
-        case .stop: return "Claude finished responding"
-        case .subagentStop: return "Subagent completed"
-        case .sessionEnd: return "Session ended"
-        case .userPromptSubmit: return "Processing your prompt"
-        case .permissionRequest: return "Permission requested"
-        case .unknown: return nil
+    func contextTitle(for source: NotificationSource) -> String? {
+        if source == .codex {
+            switch self {
+            case .stop: return "Codex finished responding"
+            case .subagentStop: return "Codex subagent completed"
+            case .permissionRequest: return "Codex needs your approval"
+            case .notification, .sessionEnd, .userPromptSubmit, .unknown: return nil
+            }
+        } else {
+            switch self {
+            case .notification: return "Claude needs your input"
+            case .stop: return "Claude finished responding"
+            case .subagentStop: return "Subagent completed"
+            case .sessionEnd: return "Session ended"
+            case .userPromptSubmit: return "Processing your prompt"
+            case .permissionRequest: return "Permission requested"
+            case .unknown: return nil
+            }
         }
     }
 }
@@ -139,7 +151,7 @@ struct AgenticNotification: Identifiable, Codable {
     /// Canonical display mapping shared by the overlay view and system-notification service
     /// so titles and bodies cannot drift between presentation modes.
     var displayContent: (title: String, subtitle: String?, body: String) {
-        if let context = hookType?.contextTitle {
+        if let context = hookType?.contextTitle(for: source) {
             return (title: context, subtitle: source.displayName, body: truncatedMessage)
         }
         return (title: source.displayName, subtitle: nil, body: truncatedMessage)

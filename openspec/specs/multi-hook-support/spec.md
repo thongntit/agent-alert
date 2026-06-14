@@ -31,3 +31,18 @@ The system SHALL determine which hook triggered the notification based on payloa
 #### Scenario: No hook type in payload
 - **WHEN** payload lacks hook type information
 - **THEN** system uses default behavior based on notification type
+
+### Requirement: Support Codex lifecycle hooks
+The system SHALL handle Codex `Stop`, `PermissionRequest`, and `SubagentStop` events.
+
+#### Scenario: Codex main turn finishes
+- **WHEN** Codex sends a `Stop` payload
+- **THEN** system displays a Codex completion notification
+
+#### Scenario: Codex needs approval
+- **WHEN** Codex sends a `PermissionRequest` payload
+- **THEN** system displays a Codex permission notification
+
+#### Scenario: Codex subagent finishes
+- **WHEN** Codex sends a `SubagentStop` payload
+- **THEN** system displays a Codex subagent completion notification

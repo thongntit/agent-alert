@@ -13,7 +13,18 @@
 
 /* Begin PBXFileReference section */
 		BA5B86FD2F3EF06500B518EC /* Alerto.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Alerto.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C0D000012F00000000000001 /* AlertoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = AlertoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXContainerItemProxy section */
+		C0D000022F00000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = BA5B86F52F3EF06500B518EC /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BA5B86FC2F3EF06500B518EC;
+			remoteInfo = Alerto;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		E5A07FE62F667FA10079F469 /* Exceptions for "alerto" folder in "Alerto" target */ = {
@@ -34,6 +45,11 @@
 			path = alerto;
 			sourceTree = "<group>";
 		};
+		C0D000032F00000000000003 /* alertoTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = alertoTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -46,6 +62,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0D000042F00000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -53,6 +76,7 @@
 			isa = PBXGroup;
 			children = (
 				BA5B86FF2F3EF06500B518EC /* alerto */,
+				C0D000032F00000000000003 /* alertoTests */,
 				BA5B86FE2F3EF06500B518EC /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				BA5B86FD2F3EF06500B518EC /* Alerto.app */,
+				C0D000012F00000000000001 /* AlertoTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -92,6 +117,29 @@
 			productReference = BA5B86FD2F3EF06500B518EC /* Alerto.app */;
 			productType = "com.apple.product-type.application";
 		};
+		C0D000052F00000000000005 /* AlertoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0D0000A2F0000000000000A /* Build configuration list for PBXNativeTarget "AlertoTests" */;
+			buildPhases = (
+				C0D000062F00000000000006 /* Sources */,
+				C0D000042F00000000000004 /* Frameworks */,
+				C0D000072F00000000000007 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C0D000082F00000000000008 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C0D000032F00000000000003 /* alertoTests */,
+			);
+			name = AlertoTests;
+			packageProductDependencies = (
+			);
+			productName = AlertoTests;
+			productReference = C0D000012F00000000000001 /* AlertoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -104,6 +152,10 @@
 				TargetAttributes = {
 					BA5B86FC2F3EF06500B518EC = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					C0D000052F00000000000005 = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = BA5B86FC2F3EF06500B518EC;
 					};
 				};
 			};
@@ -126,12 +178,20 @@
 			projectRoot = "";
 			targets = (
 				BA5B86FC2F3EF06500B518EC /* Alerto */,
+				C0D000052F00000000000005 /* AlertoTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		BA5B86FB2F3EF06500B518EC /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0D000072F00000000000007 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -148,7 +208,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0D000062F00000000000006 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C0D000082F00000000000008 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BA5B86FC2F3EF06500B518EC /* Alerto */;
+			targetProxy = C0D000022F00000000000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		BA5B87062F3EF06600B518EC /* Debug */ = {
@@ -338,6 +413,36 @@
 			};
 			name = Release;
 		};
+		C0D0000B2F0000000000000B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				PRODUCT_BUNDLE_IDENTIFIER = thongnt.alerto.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Alerto.app/Contents/MacOS/Alerto";
+			};
+			name = Debug;
+		};
+		C0D0000C2F0000000000000C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
+				PRODUCT_BUNDLE_IDENTIFIER = thongnt.alerto.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Alerto.app/Contents/MacOS/Alerto";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -355,6 +460,15 @@
 			buildConfigurations = (
 				BA5B87092F3EF06600B518EC /* Debug */,
 				BA5B870A2F3EF06600B518EC /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C0D0000A2F0000000000000A /* Build configuration list for PBXNativeTarget "AlertoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0D0000B2F0000000000000B /* Debug */,
+				C0D0000C2F0000000000000C /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
