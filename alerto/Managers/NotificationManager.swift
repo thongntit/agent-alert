@@ -20,9 +20,7 @@ class NotificationManager: ObservableObject {
     @AppStorage("dedupWindowSeconds") private var dedupWindowSeconds = 5.0
 
     private var overlayTimer: Timer?
-
-    private var lastFingerprint: String?
-    private var lastFingerprintAt: Date?
+    private var deduplicator = NotificationDeduplicator()
 
     private var notificationStyle: NotificationStyle {
         NotificationStyle(rawValue: notificationStyleRaw) ?? .overlay
@@ -63,7 +61,6 @@ class NotificationManager: ObservableObject {
             AppLogger.shared.info("Suppressed duplicate within \(Int(dedupWindowSeconds))s window", category: .notification)
             return
         }
-        recordFingerprint(for: notification)
 
         switch notificationStyle {
         case .overlay:
@@ -98,14 +95,10 @@ class NotificationManager: ObservableObject {
 
     private func isDuplicate(of notification: AgenticNotification) -> Bool {
         guard dedupEnabled, dedupWindowSeconds > 0 else { return false }
-        guard let lastFingerprint, let lastFingerprintAt else { return false }
-        guard fingerprint(for: notification) == lastFingerprint else { return false }
-        return Date().timeIntervalSince(lastFingerprintAt) <= dedupWindowSeconds
-    }
-
-    private func recordFingerprint(for notification: AgenticNotification) {
-        lastFingerprint = fingerprint(for: notification)
-        lastFingerprintAt = Date()
+        return deduplicator.isDuplicate(
+            fingerprint: fingerprint(for: notification),
+            within: dedupWindowSeconds
+        )
     }
 
     private func playInAppSoundIfEnabled() {
