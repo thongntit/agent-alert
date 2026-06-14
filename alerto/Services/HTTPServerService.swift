@@ -165,7 +165,7 @@ class HTTPServerManager: ObservableObject {
                 let bodyString = String(data: data, encoding: .utf8) ?? "Unable to decode body"
                 AppLogger.shared.debug("POST body: \(bodyString)", category: .http)
 
-                // First try to parse as HookPayload (new format with Claude Code hook data)
+                // First try to parse as HookPayload (agent lifecycle hook data)
                 if let hookPayload = try? JSONDecoder().decode(HookPayload.self, from: data) {
                     let hookEventName = hookPayload.hookEventName ?? hookPayload.hookType ?? "nil"
                     AppLogger.shared.info("Parsed as HookPayload: hookEventName=\(hookEventName), message=\(hookPayload.effectiveMessage)", category: .http)
@@ -281,7 +281,7 @@ private struct NotifyRequest: Codable {
     let message: String
 }
 
-/// Represents the payload from Claude Code hooks
+/// Represents a lifecycle hook payload from supported coding agents.
 struct HookPayload: Codable {
     // Top-level fields (backward compatibility)
     let source: String?
@@ -303,6 +303,9 @@ struct HookPayload: Codable {
     let hookEventName: String?
     let lastAssistantMessage: String?
     let permissionMode: String?
+    let toolName: String?
+    let toolInput: ToolInputPayload?
+    let agentType: String?
     let cwd: String?
     let transcriptPath: String?
 
@@ -316,6 +319,9 @@ struct HookPayload: Codable {
         case hookEventName = "hook_event_name"
         case lastAssistantMessage = "last_assistant_message"
         case permissionMode = "permission_mode"
+        case toolName = "tool_name"
+        case toolInput = "tool_input"
+        case agentType = "agent_type"
         case cwd
         case transcriptPath = "transcript_path"
     }
@@ -328,22 +334,36 @@ struct HookPayload: Codable {
         if let notif = notification?.message, !notif.isEmpty {
             return notif
         }
+        if (hookEventName ?? hookType)?.lowercased() == "permissionrequest",
+           let description = toolInput?.description,
+           !description.isEmpty {
+            return description
+        }
         if let msg = lastAssistantMessage, !msg.isEmpty {
             return msg
+        }
+        if let description = toolInput?.description, !description.isEmpty {
+            return description
         }
         // Fallback based on hook event name
         if let hookEvent = hookEventName ?? hookType {
             switch hookEvent.lowercased() {
             case "stop":
                 return "Task completed"
-            case "subagentstop":
-                return "Subagent completed"
             case "notification":
                 return "Claude needs your attention"
             case "sessionend":
                 return "Session ended"
             case "permissionrequest":
-                return "Permission requested"
+                if let toolName, !toolName.isEmpty {
+                    return "Approval requested for \(toolName)"
+                }
+                return "Approval requested"
+            case "subagentstop":
+                if let agentType, !agentType.isEmpty {
+                    return "\(agentType) subagent completed"
+                }
+                return "Subagent completed"
             default:
                 return "Notification from Claude Code"
             }
@@ -389,6 +409,27 @@ struct HookPayload: Codable {
 
 struct NotificationPayload: Codable {
     let message: String?
+}
+
+struct ToolInputPayload: Codable {
+    let description: String?
+
+    enum CodingKeys: String, CodingKey {
+        case description
+    }
+
+    init(from decoder: Decoder) throws {
+        guard let container = try? decoder.container(keyedBy: CodingKeys.self) else {
+            description = nil
+            return
+        }
+        description = try container.decodeIfPresent(String.self, forKey: .description)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encodeIfPresent(description, forKey: .description)
+    }
 }
 
 private struct HealthResponse: Codable {

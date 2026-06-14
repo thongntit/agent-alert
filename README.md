@@ -4,11 +4,12 @@
   <img src="alerto/Assets.xcassets/AppIcon.imageset/AppIcon-1024.png" alt="Alerto Icon" width="128" height="128">
 </p>
 
-A macOS menu bar application that displays intelligent notifications from Claude Code without interrupting your workflow.
+A macOS menu bar application that displays intelligent notifications from Claude Code and Codex without interrupting your workflow.
 
 ## Features
 
 - **Claude Code Integration**: Receives notifications from Claude Code hooks (stop, notification, permission request, session end, etc.)
+- **Codex Integration**: Receives `Stop`, `PermissionRequest`, and `SubagentStop` lifecycle notifications
 - **Menu Bar Interface**: Accessible through system menu bar with minimal UI footprint
 - **Customizable Settings**: Configure notification sounds and display preferences
 - **Notification History**: View and manage recent notifications
@@ -22,7 +23,7 @@ Download the latest release from the [Releases page](https://github.com/thongnti
 
 ### HTTP API
 
-Alerto exposes a local HTTP server on port 7531 for receiving notifications from Claude Code:
+Alerto exposes a local HTTP server on port 7531 for receiving notifications:
 
 ```bash
 # POST notification
@@ -47,6 +48,22 @@ Add the following to your Claude Code settings to send notifications to Alerto:
   }
 }
 ```
+
+### Codex Hook Configuration
+
+Open Alerto's **Settings > Integrations** tab and install the desired Codex hooks. Alerto manages its command handlers in the user-level `~/.codex/hooks.json` file and preserves unrelated hooks and fields.
+
+Installed hooks forward Codex's stdin JSON payload to Alerto and identify the request with `source=codex`. Alerto does not modify `~/.codex/config.toml` or Codex's completion-only `notify` setting.
+
+After installing or changing hooks:
+
+1. Start a new Codex session.
+2. Run `/hooks`.
+3. Review and trust the installed Alerto hooks.
+
+Codex skips new or changed command hooks until they are trusted.
+
+See the official [Codex Hooks](https://developers.openai.com/codex/hooks) and [Advanced Configuration](https://developers.openai.com/codex/config-advanced) documentation for the lifecycle hook and configuration model.
 
 ## Configuration
 

@@ -47,3 +47,18 @@ The system SHALL accept both old format (source/type/message as top-level fields
 #### Scenario: New format request with payload
 - **WHEN** request contains hook payload object
 - **THEN** system extracts message from payload
+
+### Requirement: Parse Codex lifecycle payloads
+The system SHALL parse Codex lifecycle fields without changing the existing `/notify` HTTP contract.
+
+#### Scenario: Codex permission request description
+- **WHEN** a `PermissionRequest` payload contains `tool_input.description`
+- **THEN** the system SHALL use the description as the notification message
+
+#### Scenario: Codex permission request fallback
+- **WHEN** a `PermissionRequest` payload lacks an approval description
+- **THEN** the system SHALL show a concise fallback identifying `tool_name` when available
+
+#### Scenario: Codex subagent completion
+- **WHEN** a `SubagentStop` payload contains `agent_type`
+- **THEN** the system SHALL use it in the fallback completion message when no assistant message is available
