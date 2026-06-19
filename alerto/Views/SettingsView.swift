@@ -222,16 +222,206 @@ struct IntegrationsSettingsView: View {
     @StateObject private var serverManager = HTTPServerManager.shared
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Integrations")
-                .font(.title2)
-                .fontWeight(.semibold)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Integrations")
+                    .font(.title2)
+                    .fontWeight(.semibold)
 
-            ClaudeCodeIntegrationView(port: serverManager.port)
+                ClaudeCodeIntegrationView(port: serverManager.port)
 
-            Spacer()
+                Divider()
+
+                CodexIntegrationView(port: serverManager.port)
+
+                Spacer()
+            }
+            .padding()
         }
-        .padding()
+    }
+}
+
+struct CodexIntegrationView: View {
+    let port: Int
+
+    @StateObject private var hookManager = CodexHookManager.shared
+    @State private var isInstalling = false
+    @State private var installError: String?
+    @State private var showActivationMessage = false
+    @State private var hookStopEnabled = false
+    @State private var hookPermissionRequestEnabled = false
+    @State private var hookSubagentStopEnabled = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Section {
+                HStack {
+                    Image(systemName: "terminal.fill")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Codex")
+                            .font(.headline)
+
+                        Text(hookStatusText)
+                            .font(.caption)
+                            .foregroundColor(hookStatusColor)
+                    }
+
+                    Spacer()
+
+                    if isInstalling {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+                }
+            }
+
+            Section("Server") {
+                HStack {
+                    Text("Port")
+                    Spacer()
+                    Text("\(port)")
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Section("Hooks") {
+                Toggle("Stop - When main turn finishes", isOn: $hookStopEnabled)
+                    .onChange(of: hookStopEnabled) { _, enabled in
+                        toggleHook("stop", enabled: enabled)
+                    }
+
+                Toggle("PermissionRequest - When approval is needed", isOn: $hookPermissionRequestEnabled)
+                    .onChange(of: hookPermissionRequestEnabled) { _, enabled in
+                        toggleHook("permission-request", enabled: enabled)
+                    }
+
+                Toggle("SubagentStop - When a subagent finishes", isOn: $hookSubagentStopEnabled)
+                    .onChange(of: hookSubagentStopEnabled) { _, enabled in
+                        toggleHook("subagent-stop", enabled: enabled)
+                    }
+            }
+            .onAppear {
+                refreshHookStates()
+            }
+
+            Section {
+                HStack {
+                    Button("Install All") {
+                        installAllHooks()
+                    }
+                    .disabled(isInstalling || allHooksEnabled)
+
+                    Button("Remove All") {
+                        removeAllHooks()
+                    }
+                    .disabled(isInstalling || !anyHookEnabled)
+                    .foregroundColor(.red)
+                }
+
+                if let installError {
+                    Text(installError)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+
+                if showActivationMessage {
+                    Text("Start a new Codex session, run /hooks, and trust the installed hooks.")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            }
+
+            Section {
+                Text("Alerto manages user-level hooks in ~/.codex/hooks.json. Codex requires new or changed hooks to be reviewed and trusted.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var hookStatusText: String {
+        if !hookManager.isCodexInstalled() {
+            return "Codex not detected"
+        }
+        if hookManager.isAnyHookInstalled() {
+            let count = [hookStopEnabled, hookPermissionRequestEnabled, hookSubagentStopEnabled].filter { $0 }.count
+            return "\(count) hook(s) installed"
+        }
+        return "No hooks installed"
+    }
+
+    private var hookStatusColor: Color {
+        if !hookManager.isCodexInstalled() {
+            return .orange
+        }
+        return hookManager.isAnyHookInstalled() ? .green : .secondary
+    }
+
+    private var allHooksEnabled: Bool {
+        hookStopEnabled && hookPermissionRequestEnabled && hookSubagentStopEnabled
+    }
+
+    private var anyHookEnabled: Bool {
+        hookStopEnabled || hookPermissionRequestEnabled || hookSubagentStopEnabled
+    }
+
+    private func refreshHookStates() {
+        hookStopEnabled = hookManager.isHookInstalled(name: "stop")
+        hookPermissionRequestEnabled = hookManager.isHookInstalled(name: "permission-request")
+        hookSubagentStopEnabled = hookManager.isHookInstalled(name: "subagent-stop")
+    }
+
+    private func toggleHook(_ name: String, enabled: Bool) {
+        isInstalling = true
+        installError = nil
+        showActivationMessage = false
+
+        do {
+            if enabled {
+                try hookManager.installHook(name: name, port: port)
+                showActivationMessage = true
+            } else {
+                try hookManager.uninstallHook(name: name)
+            }
+        } catch {
+            installError = "Failed to \(enabled ? "install" : "remove"): \(error.localizedDescription)"
+            refreshHookStates()
+        }
+
+        isInstalling = false
+    }
+
+    private func installAllHooks() {
+        isInstalling = true
+        installError = nil
+
+        do {
+            try hookManager.installHooks(port: port)
+            refreshHookStates()
+            showActivationMessage = true
+        } catch {
+            installError = "Failed to install: \(error.localizedDescription)"
+        }
+
+        isInstalling = false
+    }
+
+    private func removeAllHooks() {
+        isInstalling = true
+        installError = nil
+        showActivationMessage = false
+
+        do {
+            try hookManager.uninstallHooks()
+            refreshHookStates()
+        } catch {
+            installError = "Failed to remove: \(error.localizedDescription)"
+        }
+
+        isInstalling = false
     }
 }
 

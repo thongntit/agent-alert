@@ -32,3 +32,14 @@ The system SHALL support notification titles, bodies, and subtitles for better c
 #### Scenario: Minimal notification
 - **WHEN** only message is available
 - **THEN** the system uses the same sensible defaults for missing title/subtitle in both presentation modes
+
+### Requirement: Source-aware hook context
+The system SHALL map hook context titles according to the notification source.
+
+#### Scenario: Existing Claude notification
+- **WHEN** a Claude Code hook notification is displayed
+- **THEN** its existing Claude-specific title SHALL remain unchanged
+
+#### Scenario: Codex lifecycle notification
+- **WHEN** a Codex `Stop`, `PermissionRequest`, or `SubagentStop` notification is displayed
+- **THEN** the title SHALL identify the corresponding Codex lifecycle event
