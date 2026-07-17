@@ -116,12 +116,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         _ = updaterManager.updaterController
         NSLog("[AppDelegate] UpdaterManager shared initialized")
 
+        let cliProxyService = CLIProxyUsageService.shared
+        if cliProxyService.connectOnLaunch {
+            cliProxyService.startPollingIfNeeded()
+        }
+
         Task {
             await HTTPServerManager.shared.start()
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        CLIProxyUsageService.shared.stopPolling()
         Task {
             await HTTPServerManager.shared.stop()
         }

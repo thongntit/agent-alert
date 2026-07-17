@@ -1,12 +1,17 @@
 import SwiftUI
+import Combine
 
 struct MenuBarView: View {
     @StateObject private var notificationManager = NotificationManager.shared
     @StateObject private var serverManager = HTTPServerManager.shared
-    
+    @StateObject private var cliProxyService = CLIProxyUsageService.shared
+
     @State private var isClearAllHovered = false
     @State private var isSettingsHovered = false
     @State private var isQuitHovered = false
+    @State private var cliProxyMenuLineIndex = 0
+
+    private let cliProxyRotationTimer = Timer.publish(every: 4, on: .main, in: .common).autoconnect()
     
     var body: some View {
         VStack(spacing: 0) {
@@ -15,9 +20,13 @@ struct MenuBarView: View {
             Divider()
             
             serverStatusView
-            
+
             Divider()
-            
+
+            cliProxyStatusView
+
+            Divider()
+
             if notificationManager.notifications.isEmpty {
                 emptyStateView
             } else {
@@ -30,6 +39,12 @@ struct MenuBarView: View {
         }
         .frame(width: 320)
         .frame(maxHeight: 450)
+        .onReceive(cliProxyRotationTimer) { _ in
+            advanceCLIProxyMenuLine()
+        }
+        .onChange(of: cliProxyMenuLines) { _, _ in
+            resetCLIProxyMenuLineRotation()
+        }
     }
     
     private var headerView: some View {
@@ -73,6 +88,42 @@ struct MenuBarView: View {
         .background(Color(NSColor.controlBackgroundColor))
     }
     
+    private var cliProxyStatusView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Circle()
+                    .fill(cliProxyStatusColor)
+                    .frame(width: 8, height: 8)
+
+                Text(cliProxyService.status.displayText)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+
+                Spacer()
+
+                if cliProxyService.isRefreshing {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                }
+            }
+
+            if let currentCLIProxyMenuLine {
+                Text(currentCLIProxyMenuLine)
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            } else if !cliProxyService.discoveredAccounts.isEmpty {
+                Text("\(cliProxyService.supportedAccountCount) supported account(s) discovered")
+                    .font(.system(size: 10))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color(NSColor.controlBackgroundColor))
+    }
+
     private var statusColor: Color {
         switch serverManager.status {
         case .running:
@@ -81,6 +132,44 @@ struct MenuBarView: View {
             return .gray
         case .error:
             return .red
+        }
+    }
+
+    private var cliProxyStatusColor: Color {
+        switch cliProxyService.status {
+        case .connected:
+            return .green
+        case .connecting:
+            return .blue
+        case .disconnected:
+            return .gray
+        case .error:
+            return .red
+        }
+    }
+
+    private var cliProxyMenuLines: [String] {
+        cliProxyService.snapshot?.menuLines ?? []
+    }
+
+    private var currentCLIProxyMenuLine: String? {
+        guard !cliProxyMenuLines.isEmpty else { return nil }
+        let index = min(cliProxyMenuLineIndex, cliProxyMenuLines.count - 1)
+        return cliProxyMenuLines[index]
+    }
+
+    private func advanceCLIProxyMenuLine() {
+        guard cliProxyMenuLines.count > 1 else { return }
+        cliProxyMenuLineIndex = (cliProxyMenuLineIndex + 1) % cliProxyMenuLines.count
+    }
+
+    private func resetCLIProxyMenuLineRotation() {
+        if cliProxyMenuLines.isEmpty {
+            cliProxyMenuLineIndex = 0
+        } else if cliProxyMenuLineIndex >= cliProxyMenuLines.count {
+            cliProxyMenuLineIndex = 0
+        } else {
+            cliProxyMenuLineIndex = 0
         }
     }
     

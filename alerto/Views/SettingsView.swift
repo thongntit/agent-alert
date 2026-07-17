@@ -220,6 +220,7 @@ struct GeneralSettingsView: View {
 
 struct IntegrationsSettingsView: View {
     @StateObject private var serverManager = HTTPServerManager.shared
+    @StateObject private var cliProxyService = CLIProxyUsageService.shared
 
     var body: some View {
         ScrollView {
@@ -234,10 +235,384 @@ struct IntegrationsSettingsView: View {
 
                 CodexIntegrationView(port: serverManager.port)
 
+                Divider()
+
+                CLIProxyIntegrationView()
+
                 Spacer()
             }
             .padding()
         }
+        .onAppear {
+            if cliProxyService.isConfigured {
+                Task {
+                    await cliProxyService.refresh()
+                }
+            }
+        }
+    }
+}
+
+struct CLIProxyIntegrationView: View {
+    @StateObject private var cliProxyService = CLIProxyUsageService.shared
+
+    @State private var baseURL = ""
+    @State private var managementKey = ""
+    @State private var pollingEnabled = false
+    @State private var pollingInterval: TimeInterval = 60
+    @State private var connectOnLaunch = false
+
+    private let pollingOptions: [TimeInterval] = [15, 30, 60, 300]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Section {
+                HStack {
+                    Image(systemName: "externaldrive.connected.to.line.below")
+                        .font(.title2)
+                        .foregroundColor(.blue)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("CLIProxy Usage")
+                            .font(.headline)
+
+                        Text(cliProxyService.status.displayText)
+                            .font(.caption)
+                            .foregroundColor(statusColor)
+                    }
+
+                    Spacer()
+
+                    if cliProxyService.isRefreshing {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    }
+                }
+            }
+
+            Divider()
+
+            Section("Connection") {
+                HStack {
+                    Text("Base URL")
+                    Spacer()
+                    TextField("https://cliproxy.example.com", text: $baseURL)
+                        .frame(width: 220)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: baseURL) { _, newValue in
+                            cliProxyService.updateBaseURL(newValue)
+                        }
+                }
+
+                HStack {
+                    Text("Management Key")
+                    Spacer()
+                    SecureField("Required", text: $managementKey)
+                        .frame(width: 220)
+                        .textFieldStyle(.roundedBorder)
+                }
+            }
+
+            Section("Controls") {
+                Toggle("Connect on launch", isOn: $connectOnLaunch)
+                    .onChange(of: connectOnLaunch) { _, newValue in
+                        cliProxyService.updateConnectOnLaunch(newValue)
+                    }
+
+                Toggle("Refresh automatically", isOn: $pollingEnabled)
+                    .onChange(of: pollingEnabled) { _, newValue in
+                        cliProxyService.updatePolling(enabled: newValue, interval: pollingInterval)
+                    }
+
+                HStack {
+                    Text("Poll interval")
+                    Spacer()
+                    Picker("Poll interval", selection: $pollingInterval) {
+                        ForEach(pollingOptions, id: \.self) { option in
+                            Text(pollingLabel(for: option)).tag(option)
+                        }
+                    }
+                    .frame(width: 160)
+                    .pickerStyle(.menu)
+                    .onChange(of: pollingInterval) { _, newValue in
+                        cliProxyService.updatePolling(enabled: pollingEnabled, interval: newValue)
+                    }
+                }
+
+                HStack {
+                    Button("Load Accounts") {
+                        persistManagementKey()
+                        Task {
+                            await cliProxyService.testConnection()
+                        }
+                    }
+                    .disabled(cliProxyService.isRefreshing || !hasMinimumConfiguration)
+
+                    Button("Refresh Usage") {
+                        persistManagementKey()
+                        Task {
+                            await cliProxyService.refresh()
+                        }
+                    }
+                    .disabled(cliProxyService.isRefreshing || !hasMinimumConfiguration)
+                }
+
+                if let errorMessage = cliProxyService.errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+            }
+
+            Section("Summary") {
+                HStack {
+                    Text("Accounts")
+                    Spacer()
+                    Text("\(cliProxyService.discoveredAccounts.count) found · \(cliProxyService.supportedAccountCount) supported")
+                        .foregroundColor(.secondary)
+                }
+
+                HStack {
+                    Text("Last updated")
+                    Spacer()
+                    Text(lastUpdatedText)
+                        .foregroundColor(.secondary)
+                }
+
+                if cliProxyService.discoveredAccounts.isEmpty {
+                    Text("Configure CLIProxy and load accounts to discover Anthropic and Codex providers automatically.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            if !cliProxyService.discoveredAccounts.isEmpty {
+                Section("Discovered Accounts") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(cliProxyService.discoveredAccounts) { account in
+                            CLIProxyDiscoveredAccountRowView(account: account)
+                        }
+                    }
+                }
+            }
+
+            if let snapshot = cliProxyService.snapshot, !snapshot.accounts.isEmpty {
+                Section("Usage by Account") {
+                    VStack(alignment: .leading, spacing: 12) {
+                        ForEach(snapshot.accounts) { usage in
+                            CLIProxyAccountUsageCardView(usage: usage)
+                        }
+                    }
+                }
+            }
+
+            Section {
+                Text("Alerto loads valid provider accounts from CLIProxy and fetches usage for supported providers like Anthropic and Codex.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .onAppear {
+            baseURL = cliProxyService.baseURL
+            managementKey = cliProxyService.loadManagementKey()
+            pollingEnabled = cliProxyService.pollingEnabled
+            pollingInterval = cliProxyService.pollingInterval
+            connectOnLaunch = cliProxyService.connectOnLaunch
+        }
+    }
+
+    private var hasMinimumConfiguration: Bool {
+        !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+        !managementKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var statusColor: Color {
+        switch cliProxyService.status {
+        case .connected:
+            return .green
+        case .connecting:
+            return .blue
+        case .disconnected:
+            return .secondary
+        case .error:
+            return .red
+        }
+    }
+
+    private var lastUpdatedText: String {
+        guard let lastUpdated = cliProxyService.lastUpdated else {
+            return "Never"
+        }
+        return lastUpdated.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func pollingLabel(for interval: TimeInterval) -> String {
+        if interval < 60 {
+            return "\(Int(interval))s"
+        }
+        return "\(Int(interval / 60))m"
+    }
+
+    private func persistManagementKey() {
+        cliProxyService.saveManagementKey(managementKey)
+    }
+}
+
+struct CLIProxyDiscoveredAccountRowView: View {
+    let account: CLIProxyDiscoveredAccount
+
+    var body: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(account.providerDisplayName + " · " + account.label)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                if let detail = account.detail {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                if let statusMessage = account.statusMessage, !statusMessage.isEmpty {
+                    Text(statusMessage)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            Spacer()
+
+            Text(account.supportsUsageFetch ? "Ready" : "Unavailable")
+                .font(.caption)
+                .foregroundColor(account.supportsUsageFetch ? .green : .secondary)
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(NSColor.controlBackgroundColor))
+        )
+    }
+}
+
+struct CLIProxyAccountUsageCardView: View {
+    let usage: CLIProxyAccountUsage
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(usage.provider.displayName + " · " + usage.accountLabel)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+
+                Spacer()
+
+                Text(stateText)
+                    .font(.caption)
+                    .foregroundColor(stateColor)
+            }
+
+            if let detail = usage.accountDetail {
+                Text(detail)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            if !usage.summaryLines.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(usage.summaryLines, id: \.self) { line in
+                        Text(line)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
+            if !usage.bucketSummaries.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(usage.bucketSummaries) { bucket in
+                        HStack {
+                            Text(bucket.title)
+                            Spacer()
+                            Text(bucketSummary(bucket))
+                                .foregroundColor(.secondary)
+                        }
+                        .font(.caption)
+                    }
+                }
+            }
+
+            if let spend = usage.spendSummary {
+                Text(spendSummaryText(spend))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            if let rawPreview = usage.rawResponsePreview, usage.provider == .codex {
+                DisclosureGroup("Raw response") {
+                    ScrollView {
+                        Text(rawPreview)
+                            .font(.system(.caption, design: .monospaced))
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .frame(height: 120)
+                }
+                .font(.caption)
+            }
+        }
+        .padding(10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(NSColor.controlBackgroundColor))
+        )
+    }
+
+    private var stateText: String {
+        switch usage.state {
+        case .success:
+            return "Loaded"
+        case .cooldown(let retryAt, _):
+            return "Retry \(retryAt.formatted(.relative(presentation: .named)))"
+        case .unsupported:
+            return "Unsupported"
+        case .failed:
+            return "Error"
+        }
+    }
+
+    private var stateColor: Color {
+        switch usage.state {
+        case .success:
+            return .green
+        case .cooldown:
+            return .orange
+        case .unsupported:
+            return .secondary
+        case .failed:
+            return .red
+        }
+    }
+
+    private func bucketSummary(_ bucket: CLIProxyUsageBucketSummary) -> String {
+        let used = bucket.utilizationPercent.map { String(format: "%.0f%% used", $0) } ?? "Unavailable"
+        let remaining = bucket.remainingPercent.map { String(format: "%.0f%% left", $0) }
+        if let remaining {
+            return used + " · " + remaining
+        }
+        return used
+    }
+
+    private func spendSummaryText(_ spend: CLIProxySpendSummary) -> String {
+        if spend.enabled {
+            let used = spend.usedDisplay ?? "—"
+            let limit = spend.limitDisplay ?? "—"
+            if let percent = spend.percent {
+                return "Spend: \(used) of \(limit) · \(String(format: "%.0f%%", percent)) used"
+            }
+            return "Spend: \(used) of \(limit)"
+        }
+        return spend.disclaimer ?? "Extra usage is disabled"
     }
 }
 
