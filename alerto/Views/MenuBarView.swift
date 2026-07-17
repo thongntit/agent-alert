@@ -108,6 +108,7 @@ struct MenuBarView: View {
             }
             .padding()
         }
+        .frame(height: 200)
     }
     
     private var footerView: some View {
