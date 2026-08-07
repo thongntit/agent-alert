@@ -10,6 +10,7 @@ A macOS menu bar application that displays intelligent notifications from Claude
 
 - **Claude Code Integration**: Receives notifications from Claude Code hooks (stop, notification, permission request, session end, etc.)
 - **Codex Integration**: Receives `Stop`, `PermissionRequest`, and `SubagentStop` lifecycle notifications
+- **Remaining Usage**: Shows the Claude Code and Codex Session/Weekly quota still available from your existing CLI sign-ins
 - **Menu Bar Interface**: Accessible through system menu bar with minimal UI footprint
 - **Customizable Settings**: Configure notification sounds and display preferences
 - **Notification History**: View and manage recent notifications
@@ -64,6 +65,12 @@ After installing or changing hooks:
 Codex skips new or changed command hooks until they are trusted.
 
 See the official [Codex Hooks](https://developers.openai.com/codex/hooks) and [Advanced Configuration](https://developers.openai.com/codex/config-advanced) documentation for the lifecycle hook and configuration model.
+
+### Remaining Claude Code and Codex Usage
+
+Alerto can show your remaining Claude Code and Codex Session/Weekly quotas at the top of its menu without requiring OpenUsage. It reuses the existing Claude Code login in Keychain (or `~/.claude/.credentials.json`) and the Codex CLI login in `~/.codex/auth.json` (respecting `CLAUDE_CONFIG_DIR` and `CODEX_HOME`). Alerto only performs read-only quota requests: it never invokes a model, starts an agent turn, or changes either CLI's credentials.
+
+The app checks at launch and every five minutes. The manual refresh button is coalesced for 30 seconds to avoid accidental repeated requests. If macOS asks for Keychain access, approve it to show Claude Code usage.
 
 ## Configuration
 

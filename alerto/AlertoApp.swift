@@ -112,6 +112,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         NotificationOverlayManager.shared.setup()
         SystemNotificationService.shared.registerDelegate()
 
+        // Start the direct quota fetch at launch so the menu is populated when opened.
+        Task { @MainActor in
+            _ = UsageManager.shared
+        }
+
         // Trigger initialization by accessing the singleton
         _ = updaterManager.updaterController
         NSLog("[AppDelegate] UpdaterManager shared initialized")
