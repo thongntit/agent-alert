@@ -33,8 +33,8 @@ struct MenuBarView: View {
             
             footerView
         }
-        .frame(width: 320)
-        .frame(maxHeight: 600)
+        .frame(width: 360)
+        .frame(maxHeight: 700)
     }
     
     private var headerView: some View {
@@ -83,6 +83,13 @@ struct MenuBarView: View {
             HStack {
                 Text("Remaining Usage")
                     .font(.system(size: 13, weight: .semibold))
+
+                TimelineView(.periodic(from: .now, by: 1)) { context in
+                    Text(nextUsageUpdateText(now: context.date))
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .monospacedDigit()
+                }
 
                 Spacer()
 
@@ -177,7 +184,7 @@ struct MenuBarView: View {
     private var footerView: some View {
         HStack {
             Button("Clear All") {
-                notificationManager.clearAll()
+             notificationManager.clearAll()
             }
             .buttonStyle(.plain)
             .foregroundColor(isClearAllHovered ? .primary : .secondary)
@@ -186,7 +193,7 @@ struct MenuBarView: View {
             }
             
             Spacer()
-            
+
             HStack(spacing: 16) {
                 Button {
                     SettingsWindowManager.shared.showSettings()
@@ -216,6 +223,19 @@ struct MenuBarView: View {
         .padding()
         .background(Color(NSColor.windowBackgroundColor))
     }
+
+    private func nextUsageUpdateText(now: Date) -> String {
+        if usageManager.isRefreshing {
+            return "Updating…"
+        }
+
+        let base = usageManager.lastRefreshAt ?? now
+        let seconds = max(0, Int(ceil(base.addingTimeInterval(5 * 60).timeIntervalSince(now))))
+        if seconds >= 60 {
+            return "Next update in \(Int(ceil(Double(seconds) / 60)))m"
+        }
+        return "Next update in \(seconds)s"
+    }
 }
 
 private struct ProviderUsageUnavailableCard: View {
@@ -238,6 +258,7 @@ private struct ProviderUsageUnavailableCard: View {
             Spacer(minLength: 0)
         }
         .padding(10)
+        .fixedSize(horizontal: false, vertical: true)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color(NSColor.windowBackgroundColor))
@@ -283,6 +304,7 @@ private struct ProviderUsageCard: View {
             }
         }
         .padding(10)
+        .fixedSize(horizontal: false, vertical: true)
         .background(
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color(NSColor.windowBackgroundColor))

@@ -9,6 +9,7 @@ final class UsageManager: ObservableObject {
     @Published private(set) var snapshot: UsageSnapshot?
     @Published private(set) var providerErrors: [UsageProvider: String] = [:]
     @Published private(set) var isRefreshing = false
+    @Published private(set) var lastRefreshAt: Date?
 
     private let client: UsageClient
     private var refreshTimer: Timer?
@@ -57,6 +58,7 @@ final class UsageManager: ObservableObject {
 
         snapshot = updated.providers.isEmpty ? nil : updated
         providerErrors = errors
+        lastRefreshAt = Date()
     }
 
     private func startAutomaticRefresh() {
