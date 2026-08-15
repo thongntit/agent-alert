@@ -29,8 +29,17 @@ struct UsageClient {
     }
 
     func fetchCodex() async throws -> ProviderUsage {
-        let credentials = try LocalCredentialReader(fileManager: fileManager).codexCredentials()
+        var credentials = try LocalCredentialReader(fileManager: fileManager).codexCredentials()
+        do {
+            return try await fetchCodex(credentials: credentials)
+        } catch UsageFetchError.sessionExpired(.codex) {
+            guard let refreshToken = credentials.refreshToken else { throw UsageFetchError.sessionExpired(.codex) }
+            credentials = try await refreshCodex(credentials, refreshToken: refreshToken)
+            return try await fetchCodex(credentials: credentials)
+        }
+    }
 
+    private func fetchCodex(credentials: CodexCredentials) async throws -> ProviderUsage {
         var request = URLRequest(url: URL(string: "https://chatgpt.com/backend-api/wham/usage")!)
         request.timeoutInterval = 10
         request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
@@ -39,10 +48,32 @@ struct UsageClient {
         if let accountID = credentials.accountID, !accountID.isEmpty {
             request.setValue(accountID, forHTTPHeaderField: "ChatGPT-Account-Id")
         }
-
         return try await execute(request, provider: .codex) { data in
             try UsageResponseMapper.codex(data: data)
         }
+    }
+
+    private func refreshCodex(_ credentials: CodexCredentials, refreshToken: String) async throws -> CodexCredentials {
+        var request = URLRequest(url: URL(string: "https://auth.openai.com/oauth/token")!)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let body = "grant_type=refresh_token&client_id=app_EMoamEEZ73f0CkXaXp7hrann&refresh_token=\(refreshToken.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? refreshToken)"
+        request.httpBody = Data(body.utf8)
+
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode),
+              let refreshed = try? JSONDecoder().decode(CodexTokenResponse.self, from: data),
+              !refreshed.accessToken.isEmpty else {
+            throw UsageFetchError.sessionExpired(.codex)
+        }
+
+        var updated = credentials
+        updated.accessToken = refreshed.accessToken
+        updated.refreshToken = refreshed.refreshToken ?? credentials.refreshToken
+        updated.idToken = refreshed.idToken ?? credentials.idToken
+        try LocalCredentialReader(fileManager: fileManager).saveCodex(updated)
+        return updated
     }
 
     private func execute(
@@ -123,9 +154,43 @@ private struct LocalCredentialReader {
             else {
                 continue
             }
-            return CodexCredentials(accessToken: accessToken, accountID: credentials.tokens?.accountID)
+            return CodexCredentials(accessToken: accessToken, refreshToken: credentials.tokens?.refreshToken, idToken: credentials.tokens?.idToken, accountID: credentials.tokens?.accountID, source: .file(path))
+        }
+
+        if let data = keychainData(service: "Codex Auth"),
+           let credentials = try? JSONDecoder().decode(CodexAuthFile.self, from: data),
+           let accessToken = credentials.tokens?.accessToken,
+           !accessToken.isEmpty {
+            return CodexCredentials(accessToken: accessToken, refreshToken: credentials.tokens?.refreshToken, idToken: credentials.tokens?.idToken, accountID: credentials.tokens?.accountID, source: .keychain)
         }
         throw UsageFetchError.notSignedIn(.codex)
+    }
+
+    func saveCodex(_ credentials: CodexCredentials) throws {
+        let tokens = CodexTokens(accessToken: credentials.accessToken, refreshToken: credentials.refreshToken, idToken: credentials.idToken, accountID: credentials.accountID)
+        let data = try JSONEncoder().encode(CodexAuthFile(tokens: tokens))
+        switch credentials.source {
+        case .file(let path): try data.write(to: path, options: .atomic)
+        case .keychain:
+            let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "Codex Auth"]
+            let status = SecItemUpdate(query as CFDictionary, [kSecValueData as String: data] as CFDictionary)
+            guard status == errSecSuccess else { throw UsageFetchError.sessionExpired(.codex) }
+        }
+    }
+
+    private func keychainData(service: String) -> Data? {
+        let context = LAContext()
+        context.interactionNotAllowed = true
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+            kSecUseAuthenticationContext as String: context
+        ]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return nil }
+        return item as? Data
     }
 
     private func claudeKeychainCredentials(allowInteraction: Bool) -> Result<ClaudeOAuth, UsageFetchError> {
@@ -177,15 +242,46 @@ private struct ClaudeOAuth: Decodable {
 }
 
 private struct CodexCredentials {
-    let accessToken: String
+    var accessToken: String
+    var refreshToken: String?
+    var idToken: String?
     let accountID: String?
+    let source: Source
+
+    enum Source {
+        case file(URL)
+        case keychain
+    }
 }
 
-private struct CodexAuthFile: Decodable {
+private struct CodexAuthFile: Codable {
     let tokens: CodexTokens?
+
+    init(tokens: CodexTokens?) { self.tokens = tokens }
 }
 
-private struct CodexTokens: Decodable {
+private struct CodexTokens: Codable {
     let accessToken: String?
+    let refreshToken: String?
+    let idToken: String?
     let accountID: String?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case idToken = "id_token"
+        case accountID = "account_id"
+    }
+}
+
+private struct CodexTokenResponse: Decodable {
+    let accessToken: String
+    let refreshToken: String?
+    let idToken: String?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+        case idToken = "id_token"
+    }
 }

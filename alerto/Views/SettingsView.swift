@@ -36,6 +36,7 @@ struct GeneralSettingsView: View {
     @AppStorage("overlayDuration") private var overlayDuration = 3.0
     @AppStorage("playSound") private var playSound = true
     @AppStorage("selectedSound") private var selectedSound = "Glass"
+    @AppStorage("showMenubarUsage") private var showMenubarUsage = true
 
     @StateObject private var serverManager = HTTPServerManager.shared
     @StateObject private var launchAtLoginService = LaunchAtLoginService.shared
@@ -79,6 +80,14 @@ struct GeneralSettingsView: View {
                     .buttonStyle(.link)
                     .font(.caption)
                 }
+            }
+
+            Section("Menu Bar") {
+                Toggle("Show remaining usage", isOn: $showMenubarUsage)
+
+                Text("Shows Claude Code and Codex session and weekly percentages beside the bell.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
 
             Section("Notifications") {
