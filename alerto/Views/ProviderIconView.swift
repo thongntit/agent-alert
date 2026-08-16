@@ -19,6 +19,21 @@ struct ProviderIconView: View {
     }
 }
 
+struct NotificationSourceIconView: View {
+    let source: NotificationSource
+    let size: CGFloat
+
+    var body: some View {
+        if let provider = UsageProvider(rawValue: source.rawValue) {
+            ProviderIconView(provider: provider, size: size)
+        } else {
+            Image(systemName: source.icon)
+                .font(.system(size: size * 0.8))
+                .frame(width: size, height: size)
+        }
+    }
+}
+
 enum ProviderIconImage {
     static func image(for provider: UsageProvider) -> NSImage? {
         guard let url = Bundle.main.url(forResource: provider.rawValue, withExtension: "svg"),
