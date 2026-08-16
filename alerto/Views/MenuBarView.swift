@@ -347,8 +347,7 @@ struct NotificationRowView: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: notification.source.icon)
-                .font(.system(size: 20))
+            NotificationSourceIconView(source: notification.source, size: 20)
                 .foregroundColor(Color(hex: notification.type.color))
                 .frame(width: 32)
             
