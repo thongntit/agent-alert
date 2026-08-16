@@ -36,7 +36,8 @@ final class UsageManager: ObservableObject {
         lastAttemptAt = now
         defer { isRefreshing = false }
 
-        async let claude = result { try await client.fetchClaude(allowKeychainInteraction: manual) }
+        // Usage refreshes must never block the menu bar with a Keychain prompt.
+        async let claude = result { try await client.fetchClaude(allowKeychainInteraction: false) }
         async let codex = result { try await client.fetchCodex() }
 
         let results: [(UsageProvider, Result<ProviderUsage, Error>)] = [
