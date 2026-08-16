@@ -111,9 +111,17 @@ private struct LocalCredentialReader {
     }
 
     func claudeAccessToken(allowKeychainInteraction: Bool) throws -> String {
-        let keychainResult = claudeKeychainCredentials(allowInteraction: allowKeychainInteraction)
-        if case .success(let credentials) = keychainResult, let accessToken = credentials.accessToken, !accessToken.isEmpty {
-            return accessToken
+        let keychainResult: Result<ClaudeOAuth, UsageFetchError>
+        if allowKeychainInteraction {
+            keychainResult = claudeKeychainCredentials(allowInteraction: true)
+            if case .success(let credentials) = keychainResult,
+               let accessToken = credentials.accessToken,
+               !accessToken.isEmpty {
+                return accessToken
+            }
+        } else {
+            // Automatic usage refreshes must not touch the Claude Keychain item at all.
+            keychainResult = .failure(.notSignedIn(.claude))
         }
 
         let configurationHome = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]
@@ -124,7 +132,7 @@ private struct LocalCredentialReader {
               let accessToken = credentials.claudeAiOauth?.accessToken,
               !accessToken.isEmpty
         else {
-            if case .failure(let error) = keychainResult {
+            if case .failure(let error) = keychainResult, allowKeychainInteraction {
                 throw error
             }
             throw UsageFetchError.notSignedIn(.claude)
