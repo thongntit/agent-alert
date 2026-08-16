@@ -199,7 +199,9 @@ private struct LocalCredentialReader {
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: "Claude Code-credentials",
                 kSecReturnData as String: true,
-                kSecMatchLimit as String: kSecMatchLimitOne
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                // Never unlock Keychain or show authentication UI during a usage refresh.
+                kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail
             ]
             if includeAccount {
                 query[kSecAttrAccount as String] = NSUserName()
