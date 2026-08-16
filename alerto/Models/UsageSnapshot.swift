@@ -13,6 +13,14 @@ enum UsageProvider: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// Provider brand colors mirrored from OpenUsage's TotalSpendPalette.
+    var brandColorHex: String {
+        switch self {
+        case .claude: return "#DE7356" // Claude terracotta
+        case .codex: return "#10A37F" // OpenAI green
+        }
+    }
+
     var icon: String {
         switch self {
         case .claude: return "brain.head.profile"
