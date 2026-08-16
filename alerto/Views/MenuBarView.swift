@@ -245,7 +245,7 @@ private struct ProviderUsageUnavailableCard: View {
     var body: some View {
         HStack(alignment: .top, spacing: 7) {
             ProviderIconView(provider: provider, size: 14)
-                .foregroundColor(provider == .claude ? .purple : .blue)
+                .foregroundColor(Color(hex: provider.brandColorHex))
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(provider.displayName)
@@ -310,7 +310,7 @@ private struct ProviderUsageCard: View {
     }
 
     private var tint: Color {
-        providerUsage.provider == .claude ? .purple : .blue
+        Color(hex: providerUsage.provider.brandColorHex)
     }
 }
 

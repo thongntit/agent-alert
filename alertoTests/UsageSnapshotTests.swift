@@ -2,6 +2,11 @@ import XCTest
 @testable import Alerto
 
 final class UsageSnapshotTests: XCTestCase {
+    func testUsesOpenUsageBrandColors() {
+        XCTAssertEqual(UsageProvider.claude.brandColorHex, "#DE7356")
+        XCTAssertEqual(UsageProvider.codex.brandColorHex, "#10A37F")
+    }
+
     func testMapsClaudeRemainingSessionAndWeeklyLimits() throws {
         let usage = try UsageResponseMapper.claude(data: Data(#"""
         {
