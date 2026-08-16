@@ -16,8 +16,11 @@ class NotificationManager: ObservableObject {
     @AppStorage("selectedSound") private var selectedSound = "Glass"
     @AppStorage("notificationStyle") private var notificationStyleRaw = NotificationStyle.overlay.rawValue
     @AppStorage("overlayDuration") private var overlayDuration = 3.0
+    @AppStorage("dedupEnabled") private var dedupEnabled = true
+    @AppStorage("dedupWindowSeconds") private var dedupWindowSeconds = 5.0
 
     private var overlayTimer: Timer?
+    private var deduplicator = NotificationDeduplicator()
 
     private var notificationStyle: NotificationStyle {
         NotificationStyle(rawValue: notificationStyleRaw) ?? .overlay
@@ -54,6 +57,11 @@ class NotificationManager: ObservableObject {
     }
 
     private func showNotification(_ notification: AgenticNotification) {
+        if isDuplicate(of: notification) {
+            AppLogger.shared.info("Suppressed duplicate within \(Int(dedupWindowSeconds))s window", category: .notification)
+            return
+        }
+
         switch notificationStyle {
         case .overlay:
             currentNotification = notification
@@ -79,6 +87,18 @@ class NotificationManager: ObservableObject {
             AppLogger.shared.info("Notification style off; history-only", category: .display)
             appendToHistory(notification)
         }
+    }
+
+    private func fingerprint(for notification: AgenticNotification) -> String {
+        "\(notification.source.rawValue)|\(notification.type.rawValue)|\(notification.message)"
+    }
+
+    private func isDuplicate(of notification: AgenticNotification) -> Bool {
+        guard dedupEnabled, dedupWindowSeconds > 0 else { return false }
+        return deduplicator.isDuplicate(
+            fingerprint: fingerprint(for: notification),
+            within: dedupWindowSeconds
+        )
     }
 
     private func playInAppSoundIfEnabled() {

@@ -1,17 +1,94 @@
 import SwiftUI
 import Combine
 import Sparkle
+import AppKit
 
 @main
 struct AlertoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var notificationManager = NotificationManager.shared
+    @StateObject private var usageManager = UsageManager.shared
+    @AppStorage("showMenubarUsage") private var showMenubarUsage = true
 
     var body: some Scene {
-        MenuBarExtra("Alerto", systemImage: notificationManager.menubarIcon) {
+        MenuBarExtra {
             MenuBarView()
+        } label: {
+            if let image = MenuBarStatusRenderer.image(
+                iconName: notificationManager.menubarIcon,
+                snapshot: usageManager.snapshot,
+                showUsage: showMenubarUsage
+            ) {
+                Image(nsImage: image)
+            }
         }
         .menuBarExtraStyle(.window)
+    }
+}
+
+@MainActor
+private enum MenuBarStatusRenderer {
+    static func image(iconName: String, snapshot: UsageSnapshot?, showUsage: Bool) -> NSImage? {
+        let renderer = ImageRenderer(
+            content: MenuBarStatusContent(
+                iconName: iconName,
+                snapshot: snapshot,
+                showUsage: showUsage
+            )
+        )
+        renderer.scale = 2
+        guard let cgImage = renderer.cgImage else { return nil }
+        let image = NSImage(
+            cgImage: cgImage,
+            size: NSSize(
+                width: CGFloat(cgImage.width) / renderer.scale,
+                height: CGFloat(cgImage.height) / renderer.scale
+            )
+        )
+        image.isTemplate = true
+        return image
+    }
+}
+
+private struct MenuBarStatusContent: View {
+    let iconName: String
+    let snapshot: UsageSnapshot?
+    let showUsage: Bool
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: iconName)
+
+            if showUsage {
+                VStack(alignment: .leading, spacing: -1) {
+                    usageRow(for: .claude)
+                    usageRow(for: .codex)
+                }
+                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                .frame(width: 62, height: 20)
+            }
+        }
+        .fixedSize(horizontal: true, vertical: true)
+        .frame(height: 20)
+        .foregroundStyle(.black)
+        .fixedSize()
+    }
+
+    @ViewBuilder
+    private func usageRow(for provider: UsageProvider) -> some View {
+        HStack(spacing: 3) {
+            let limits = snapshot?.usage(for: provider)?.limits ?? []
+            Text(percent(for: limits, label: "Session"))
+                .frame(width: 29, alignment: .trailing)
+            Text(percent(for: limits, label: "Weekly"))
+                .frame(width: 29, alignment: .trailing)
+        }
+        .frame(width: 62, alignment: .leading)
+    }
+
+    private func percent(for limits: [UsageLimit], label: String) -> String {
+        guard let limit = limits.first(where: { $0.label == label }) else { return "--" }
+        return "\(Int(limit.remainingPercent.rounded()))%"
     }
 }
 
@@ -111,6 +188,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         URLSchemeHandler.shared.registerHandler()
         NotificationOverlayManager.shared.setup()
         SystemNotificationService.shared.registerDelegate()
+
+        // Start the direct quota fetch at launch so the menu is populated when opened.
+        Task { @MainActor in
+            _ = UsageManager.shared
+        }
 
         // Trigger initialization by accessing the singleton
         _ = updaterManager.updaterController
