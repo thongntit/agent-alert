@@ -14,18 +14,56 @@ struct UsageClient {
     }
 
     func fetchClaude(allowKeychainInteraction: Bool) async throws -> ProviderUsage {
-        let accessToken = try LocalCredentialReader(fileManager: fileManager)
-            .claudeAccessToken(allowKeychainInteraction: allowKeychainInteraction)
+        var credentials = try LocalCredentialReader(fileManager: fileManager)
+            .claudeCredentials(allowKeychainInteraction: allowKeychainInteraction)
 
+        do {
+            return try await fetchClaude(credentials: credentials)
+        } catch UsageFetchError.sessionExpired(.claude) {
+            guard let refreshToken = credentials.refreshToken else {
+                throw UsageFetchError.sessionExpired(.claude)
+            }
+            credentials = try await refreshClaude(credentials, refreshToken: refreshToken)
+            return try await fetchClaude(credentials: credentials)
+        }
+    }
+
+    private func fetchClaude(credentials: ClaudeLocalCredentials) async throws -> ProviderUsage {
         var request = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
         request.timeoutInterval = 10
-        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("Bearer \(credentials.accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         request.setValue("claude-code/2.1.69", forHTTPHeaderField: "User-Agent")
-
         return try await execute(request, provider: .claude, mapper: UsageResponseMapper.claude)
+    }
+
+    private func refreshClaude(_ credentials: ClaudeLocalCredentials, refreshToken: String) async throws -> ClaudeLocalCredentials {
+        var request = URLRequest(url: URL(string: "https://platform.claude.com/v1/oauth/token")!)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 15
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "grant_type": "refresh_token",
+            "refresh_token": refreshToken,
+            "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
+            "scope": "user:profile user:inference user:sessions:claude_code user:mcp_servers user:file_upload"
+        ])
+
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse,
+              (200..<300).contains(response.statusCode),
+              let refreshed = try? JSONDecoder().decode(ClaudeTokenResponse.self, from: data),
+              !refreshed.accessToken.isEmpty else {
+            throw UsageFetchError.sessionExpired(.claude)
+        }
+
+        var updated = credentials
+        updated.accessToken = refreshed.accessToken
+        updated.refreshToken = refreshed.refreshToken ?? credentials.refreshToken
+        try LocalCredentialReader(fileManager: fileManager).saveClaude(updated)
+        return updated
     }
 
     func fetchCodex() async throws -> ProviderUsage {
@@ -110,10 +148,18 @@ private struct LocalCredentialReader {
         self.fileManager = fileManager
     }
 
-    func claudeAccessToken(allowKeychainInteraction: Bool) throws -> String {
-        let keychainResult = claudeKeychainCredentials(allowInteraction: allowKeychainInteraction)
-        if case .success(let credentials) = keychainResult, let accessToken = credentials.accessToken, !accessToken.isEmpty {
-            return accessToken
+    func claudeCredentials(allowKeychainInteraction: Bool) throws -> ClaudeLocalCredentials {
+        let keychainResult: Result<ClaudeOAuth, UsageFetchError>
+        if allowKeychainInteraction {
+            keychainResult = claudeKeychainCredentials(allowInteraction: true)
+            if case .success(let credentials) = keychainResult,
+               let accessToken = credentials.accessToken,
+               !accessToken.isEmpty {
+                return ClaudeLocalCredentials(accessToken: accessToken, refreshToken: credentials.refreshToken, path: nil)
+            }
+        } else {
+            // Automatic usage refreshes must not touch the Claude Keychain item at all.
+            keychainResult = .failure(.notSignedIn(.claude))
         }
 
         let configurationHome = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]
@@ -121,15 +167,26 @@ private struct LocalCredentialReader {
         let path = URL(fileURLWithPath: configurationHome).appendingPathComponent(".credentials.json")
         guard let data = try? Data(contentsOf: path),
               let credentials = try? JSONDecoder().decode(ClaudeCredentials.self, from: data),
-              let accessToken = credentials.claudeAiOauth?.accessToken,
-              !accessToken.isEmpty
+               let oauth = credentials.claudeAiOauth,
+               let accessToken = oauth.accessToken,
+               !accessToken.isEmpty
         else {
-            if case .failure(let error) = keychainResult {
+            if case .failure(let error) = keychainResult, allowKeychainInteraction {
                 throw error
             }
             throw UsageFetchError.notSignedIn(.claude)
         }
-        return accessToken
+        return ClaudeLocalCredentials(
+            accessToken: accessToken,
+            refreshToken: oauth.refreshToken,
+            path: path
+        )
+    }
+
+    func saveClaude(_ credentials: ClaudeLocalCredentials) throws {
+        guard let path = credentials.path else { return }
+        let oauth = ClaudeOAuth(accessToken: credentials.accessToken, refreshToken: credentials.refreshToken)
+        try JSONEncoder().encode(ClaudeCredentials(claudeAiOauth: oauth)).write(to: path, options: .atomic)
     }
 
     func codexCredentials() throws -> CodexCredentials {
@@ -199,7 +256,9 @@ private struct LocalCredentialReader {
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: "Claude Code-credentials",
                 kSecReturnData as String: true,
-                kSecMatchLimit as String: kSecMatchLimitOne
+                kSecMatchLimit as String: kSecMatchLimitOne,
+                // Never unlock Keychain or show authentication UI during a usage refresh.
+                kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail
             ]
             if includeAccount {
                 query[kSecAttrAccount as String] = NSUserName()
@@ -233,12 +292,34 @@ private struct LocalCredentialReader {
     }
 }
 
-private struct ClaudeCredentials: Decodable {
+private struct ClaudeCredentials: Codable {
     let claudeAiOauth: ClaudeOAuth?
 }
 
-private struct ClaudeOAuth: Decodable {
+private struct ClaudeOAuth: Codable {
     let accessToken: String?
+    let refreshToken: String?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken
+        case refreshToken
+    }
+}
+
+private struct ClaudeLocalCredentials {
+    var accessToken: String
+    var refreshToken: String?
+    let path: URL?
+}
+
+private struct ClaudeTokenResponse: Decodable {
+    let accessToken: String
+    let refreshToken: String?
+
+    enum CodingKeys: String, CodingKey {
+        case accessToken = "access_token"
+        case refreshToken = "refresh_token"
+    }
 }
 
 private struct CodexCredentials {
