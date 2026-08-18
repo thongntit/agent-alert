@@ -36,8 +36,9 @@ final class UsageManager: ObservableObject {
         lastAttemptAt = now
         defer { isRefreshing = false }
 
-        // Usage refreshes must never block the menu bar with a Keychain prompt.
-        async let claude = result { try await client.fetchClaude(allowKeychainInteraction: false) }
+        // Automatic refreshes can use an already-authorized Claude Keychain item without UI. A manual
+        // refresh may ask macOS for access, which lets the user choose "Always Allow" for later refreshes.
+        async let claude = result { try await client.fetchClaude(allowKeychainInteraction: manual) }
         async let codex = result { try await client.fetchCodex() }
 
         let results: [(UsageProvider, Result<ProviderUsage, Error>)] = [
