@@ -32,19 +32,45 @@ class ClaudeCodeHookManager: ObservableObject {
         return fileManager.fileExists(atPath: settingsPath.path)
     }
 
-    /// Check if a specific hook is installed by ID
+    /// Maps an Alerto hook ID to the Claude Code event name it's installed under.
+    private static let eventNamesByHookId: [String: String] = [
+        HookIds.stop: "Stop",
+        HookIds.subagentStop: "SubagentStop",
+        HookIds.notification: "Notification",
+        HookIds.sessionEnd: "SessionEnd"
+    ]
+
+    /// Claude Code's own settings schema has no concept of a hook "id" — it only
+    /// round-trips fields it recognizes (matcher/hooks/type/command/timeout). Any tool
+    /// that reads and rewrites settings.json through that schema (e.g. Claude Code
+    /// itself via /hooks or the settings UI) silently drops our custom "id" tag. So
+    /// detection matches on the command signature instead, which survives that.
+    private func commandLooksLikeAlerto(_ command: String) -> Bool {
+        return command.contains("127.0.0.1") && command.contains("/notify")
+    }
+
+    private func eventHooks(_ hooks: [String: [[String: Any]]], for event: String) -> [[String: Any]] {
+        return hooks[event] ?? []
+    }
+
+    private func entryMatchesAlerto(_ entry: [String: Any]) -> Bool {
+        guard let nested = entry["hooks"] as? [[String: Any]] else { return false }
+        return nested.contains { cmd in
+            guard let command = cmd["command"] as? String else { return false }
+            return commandLooksLikeAlerto(command)
+        }
+    }
+
+    /// Check if a specific hook is installed, by matching its command signature
+    /// rather than a custom "id" field (which external tools can strip).
     func isHookInstalled(hookId: String) -> Bool {
         guard let settings = loadSettings(),
-              let hooks = settings["hooks"] as? [String: [[String: Any]]] else {
+              let hooks = settings["hooks"] as? [String: [[String: Any]]],
+              let event = Self.eventNamesByHookId[hookId] else {
             return false
         }
 
-        for (_, eventHooks) in hooks {
-            if eventHooks.contains(where: { ($0["id"] as? String) == hookId }) {
-                return true
-            }
-        }
-        return false
+        return eventHooks(hooks, for: event).contains(where: entryMatchesAlerto)
     }
 
     /// Check if any Alerto hook is installed
@@ -54,8 +80,8 @@ class ClaudeCodeHookManager: ObservableObject {
             return false
         }
 
-        for (_, eventHooks) in hooks {
-            if eventHooks.contains(where: { ($0["id"] as? String)?.hasPrefix(Self.hookIdPrefix) == true }) {
+        for (_, entries) in hooks {
+            if entries.contains(where: entryMatchesAlerto) {
                 return true
             }
         }
@@ -132,7 +158,6 @@ class ClaudeCodeHookManager: ObservableObject {
         guard var settings = loadSettings() else { return }
 
         var hooks = settings["hooks"] as? [String: [[String: Any]]] ?? [:]
-        let hookId = "\(Self.hookIdPrefix)\(name)"
 
         // Find the event name for this hook
         let eventName: String
@@ -147,9 +172,9 @@ class ClaudeCodeHookManager: ObservableObject {
             return
         }
 
-        // Remove hook with matching id
+        // Remove entries matching Alerto's command signature, not just tagged "id"
         if var eventHooks = hooks[eventName] {
-            eventHooks = eventHooks.filter { ($0["id"] as? String) != hookId }
+            eventHooks = eventHooks.filter { !entryMatchesAlerto($0) }
             if eventHooks.isEmpty {
                 hooks.removeValue(forKey: eventName)
             } else {
@@ -168,10 +193,11 @@ class ClaudeCodeHookManager: ObservableObject {
 
     private func installHookConfig(hooks: [String: [[String: Any]]], event: String, config: [String: Any]) -> [String: [[String: Any]]] {
         var mutableHooks = hooks
-        let hookId = config["id"] as? String ?? ""
 
-        // Remove existing hook with same id (idempotent)
-        mutableHooks[event] = (mutableHooks[event] ?? []).filter { ($0["id"] as? String) != hookId }
+        // Remove any existing entry for this event that already looks like an Alerto
+        // hook (matched by command signature, not "id" — see commandLooksLikeAlerto)
+        // so re-installing is idempotent even if a prior entry lost its id tag.
+        mutableHooks[event] = (mutableHooks[event] ?? []).filter { !entryMatchesAlerto($0) }
 
         // Add new hook
         mutableHooks[event]?.append(config)
