@@ -287,9 +287,8 @@ struct CodexIntegrationView: View {
         VStack(alignment: .leading, spacing: 16) {
             Section {
                 HStack {
-                    Image(systemName: "terminal.fill")
-                        .font(.title2)
-                        .foregroundColor(.blue)
+                    ProviderIconView(provider: .codex, size: 24)
+                        .foregroundColor(Color(hex: UsageProvider.codex.brandColorHex))
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Codex")
@@ -474,9 +473,8 @@ struct ClaudeCodeIntegrationView: View {
             // Status Section
             Section {
                 HStack {
-                    Image(systemName: "brain.head.profile")
-                        .font(.title2)
-                        .foregroundColor(.blue)
+                    ProviderIconView(provider: .claude, size: 24)
+                        .foregroundColor(Color(hex: UsageProvider.claude.brandColorHex))
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Claude Code")
