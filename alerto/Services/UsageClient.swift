@@ -149,17 +149,13 @@ private struct LocalCredentialReader {
     }
 
     func claudeCredentials(allowKeychainInteraction: Bool) throws -> ClaudeLocalCredentials {
-        let keychainResult: Result<ClaudeOAuth, UsageFetchError>
-        if allowKeychainInteraction {
-            keychainResult = claudeKeychainCredentials(allowInteraction: true)
-            if case .success(let credentials) = keychainResult,
-               let accessToken = credentials.accessToken,
-               !accessToken.isEmpty {
-                return ClaudeLocalCredentials(accessToken: accessToken, refreshToken: credentials.refreshToken, path: nil)
-            }
-        } else {
-            // Automatic usage refreshes must not touch the Claude Keychain item at all.
-            keychainResult = .failure(.notSignedIn(.claude))
+        // Automatic refreshes may read an already-authorized Keychain item without UI. A manual
+        // refresh uses the same lookup with interaction enabled, allowing macOS to offer Always Allow.
+        let keychainResult = claudeKeychainCredentials(allowInteraction: allowKeychainInteraction)
+        if case .success(let credentials) = keychainResult,
+           let accessToken = credentials.accessToken,
+           !accessToken.isEmpty {
+            return ClaudeLocalCredentials(accessToken: accessToken, refreshToken: credentials.refreshToken, path: nil)
         }
 
         let configurationHome = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]
@@ -256,14 +252,14 @@ private struct LocalCredentialReader {
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: "Claude Code-credentials",
                 kSecReturnData as String: true,
-                kSecMatchLimit as String: kSecMatchLimitOne,
-                // Never unlock Keychain or show authentication UI during a usage refresh.
-                kSecUseAuthenticationUI as String: kSecUseAuthenticationUIFail
+                kSecMatchLimit as String: kSecMatchLimitOne
             ]
             if includeAccount {
                 query[kSecAttrAccount as String] = NSUserName()
             }
             if !allowInteraction {
+                // Automatic refreshes must not show authentication UI. Manual refreshes omit this
+                // context so macOS can present its normal Keychain prompt and Always Allow choice.
                 let context = LAContext()
                 context.interactionNotAllowed = true
                 query[kSecUseAuthenticationContext as String] = context

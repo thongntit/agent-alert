@@ -68,9 +68,9 @@ See the official [Codex Hooks](https://developers.openai.com/codex/hooks) and [A
 
 ### Remaining Claude Code and Codex Usage
 
-Alerto can show your remaining Claude Code and Codex Session/Weekly quotas at the top of its menu without requiring OpenUsage. It reuses the existing Claude Code login in Keychain (or `~/.claude/.credentials.json`) and the Codex CLI login in `~/.codex/auth.json` (respecting `CLAUDE_CONFIG_DIR` and `CODEX_HOME`). Alerto only performs read-only quota requests: it never invokes a model, starts an agent turn, or changes either CLI's credentials.
+Alerto can show your remaining Claude Code and Codex Session/Weekly quotas at the top of its menu without requiring OpenUsage. It reads Claude Code's OAuth login from an already-authorized macOS Keychain entry or from `~/.claude/.credentials.json` (or `CLAUDE_CONFIG_DIR`) during automatic refreshes. An explicit manual refresh can request Keychain access if needed. It reads the Codex CLI login from `~/.codex/auth.json` (respecting `CODEX_HOME`). Alerto only performs read-only quota requests: it never invokes a model, starts an agent turn, or changes either CLI's credentials.
 
-The app checks at launch and every five minutes. The manual refresh button is coalesced for 30 seconds to avoid accidental repeated requests. If macOS asks for Keychain access, approve it to show Claude Code usage.
+The app checks at launch and every five minutes. The manual refresh button is coalesced for 30 seconds to avoid accidental repeated requests. If macOS asks for Claude Code Keychain access, choose **Always Allow** if you want later automatic refreshes to use that login without prompting again. Alerto cannot select that macOS choice on your behalf.
 
 ## Configuration
 
