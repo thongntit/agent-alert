@@ -3,7 +3,7 @@ import LocalAuthentication
 import Security
 
 /// A read-only quota client based on the endpoints used by the Claude Code and Codex CLIs.
-/// It never invokes a model, modifies credentials, or starts a coding session.
+/// It never invokes a model or starts a coding session.
 struct UsageClient {
     private let session: URLSession
     private let fileManager: FileManager
@@ -13,9 +13,9 @@ struct UsageClient {
         self.fileManager = fileManager
     }
 
-    func fetchClaude(allowKeychainInteraction: Bool) async throws -> ProviderUsage {
+    func fetchClaude() async throws -> ProviderUsage {
         var credentials = try LocalCredentialReader(fileManager: fileManager)
-            .claudeCredentials(allowKeychainInteraction: allowKeychainInteraction)
+            .claudeCredentials()
 
         do {
             return try await fetchClaude(credentials: credentials)
@@ -141,51 +141,42 @@ struct UsageClient {
     }
 }
 
-private struct LocalCredentialReader {
+struct LocalCredentialReader {
     private let fileManager: FileManager
+    private let environment: [String: String]
 
-    init(fileManager: FileManager) {
+    init(
+        fileManager: FileManager,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
         self.fileManager = fileManager
+        self.environment = environment
     }
 
-    func claudeCredentials(allowKeychainInteraction: Bool) throws -> ClaudeLocalCredentials {
-        // Automatic refreshes may read an already-authorized Keychain item without UI. A manual
-        // refresh uses the same lookup with interaction enabled, allowing macOS to offer Always Allow.
-        let keychainResult = claudeKeychainCredentials(allowInteraction: allowKeychainInteraction)
-        if case .success(let credentials) = keychainResult,
-           let accessToken = credentials.accessToken,
-           !accessToken.isEmpty {
-            return ClaudeLocalCredentials(accessToken: accessToken, refreshToken: credentials.refreshToken, path: nil)
-        }
-
-        let configurationHome = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"]
+    func claudeCredentials() throws -> ClaudeLocalCredentials {
+        let configurationHome = environment["CLAUDE_CONFIG_DIR"]
             ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".claude").path
         let path = URL(fileURLWithPath: configurationHome).appendingPathComponent(".credentials.json")
-        guard let data = try? Data(contentsOf: path),
-              let credentials = try? JSONDecoder().decode(ClaudeCredentials.self, from: data),
-               let oauth = credentials.claudeAiOauth,
-               let accessToken = oauth.accessToken,
-               !accessToken.isEmpty
-        else {
-            if case .failure(let error) = keychainResult, allowKeychainInteraction {
-                throw error
-            }
-            throw UsageFetchError.notSignedIn(.claude)
+        if let data = try? Data(contentsOf: path),
+           let credentials = try? JSONDecoder().decode(ClaudeCredentials.self, from: data),
+           let oauth = credentials.claudeAiOauth,
+           let accessToken = oauth.accessToken,
+           !accessToken.isEmpty {
+            return ClaudeLocalCredentials(
+                accessToken: accessToken,
+                refreshToken: oauth.refreshToken,
+                path: path
+            )
         }
-        return ClaudeLocalCredentials(
-            accessToken: accessToken,
-            refreshToken: oauth.refreshToken,
-            path: path
-        )
+        throw UsageFetchError.notSignedIn(.claude)
     }
 
     func saveClaude(_ credentials: ClaudeLocalCredentials) throws {
-        guard let path = credentials.path else { return }
         let oauth = ClaudeOAuth(accessToken: credentials.accessToken, refreshToken: credentials.refreshToken)
-        try JSONEncoder().encode(ClaudeCredentials(claudeAiOauth: oauth)).write(to: path, options: .atomic)
+        try JSONEncoder().encode(ClaudeCredentials(claudeAiOauth: oauth)).write(to: credentials.path, options: .atomic)
     }
 
-    func codexCredentials() throws -> CodexCredentials {
+    fileprivate func codexCredentials() throws -> CodexCredentials {
         let environment = ProcessInfo.processInfo.environment
         let homes: [URL]
         if let configuredHome = environment["CODEX_HOME"], !configuredHome.isEmpty {
@@ -219,7 +210,7 @@ private struct LocalCredentialReader {
         throw UsageFetchError.notSignedIn(.codex)
     }
 
-    func saveCodex(_ credentials: CodexCredentials) throws {
+    fileprivate func saveCodex(_ credentials: CodexCredentials) throws {
         let tokens = CodexTokens(accessToken: credentials.accessToken, refreshToken: credentials.refreshToken, idToken: credentials.idToken, accountID: credentials.accountID)
         let data = try JSONEncoder().encode(CodexAuthFile(tokens: tokens))
         switch credentials.source {
@@ -246,53 +237,13 @@ private struct LocalCredentialReader {
         return item as? Data
     }
 
-    private func claudeKeychainCredentials(allowInteraction: Bool) -> Result<ClaudeOAuth, UsageFetchError> {
-        for includeAccount in [true, false] {
-            var query: [String: Any] = [
-                kSecClass as String: kSecClassGenericPassword,
-                kSecAttrService as String: "Claude Code-credentials",
-                kSecReturnData as String: true,
-                kSecMatchLimit as String: kSecMatchLimitOne
-            ]
-            if includeAccount {
-                query[kSecAttrAccount as String] = NSUserName()
-            }
-            if !allowInteraction {
-                // Automatic refreshes must not show authentication UI. Manual refreshes omit this
-                // context so macOS can present its normal Keychain prompt and Always Allow choice.
-                let context = LAContext()
-                context.interactionNotAllowed = true
-                query[kSecUseAuthenticationContext as String] = context
-            }
-
-            var item: CFTypeRef?
-            let status = SecItemCopyMatching(query as CFDictionary, &item)
-            switch status {
-            case errSecSuccess:
-                guard let data = item as? Data,
-                      let credentials = try? JSONDecoder().decode(ClaudeCredentials.self, from: data),
-                      let oauth = credentials.claudeAiOauth
-                else {
-                    continue
-                }
-                return .success(oauth)
-            case errSecItemNotFound:
-                continue
-            case errSecInteractionNotAllowed, errSecAuthFailed:
-                return .failure(.keychainAccessRequired)
-            default:
-                continue
-            }
-        }
-        return .failure(.notSignedIn(.claude))
-    }
 }
 
-private struct ClaudeCredentials: Codable {
+struct ClaudeCredentials: Codable {
     let claudeAiOauth: ClaudeOAuth?
 }
 
-private struct ClaudeOAuth: Codable {
+struct ClaudeOAuth: Codable {
     let accessToken: String?
     let refreshToken: String?
 
@@ -302,10 +253,10 @@ private struct ClaudeOAuth: Codable {
     }
 }
 
-private struct ClaudeLocalCredentials {
+struct ClaudeLocalCredentials {
     var accessToken: String
     var refreshToken: String?
-    let path: URL?
+    let path: URL
 }
 
 private struct ClaudeTokenResponse: Decodable {
