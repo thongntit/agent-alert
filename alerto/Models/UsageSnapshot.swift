@@ -74,7 +74,6 @@ struct UsageLimit: Identifiable, Equatable {
 
 enum UsageFetchError: LocalizedError, Equatable {
     case notSignedIn(UsageProvider)
-    case keychainAccessRequired
     case sessionExpired(UsageProvider)
     case requestFailed(UsageProvider, Int)
     case invalidResponse(UsageProvider)
@@ -84,8 +83,6 @@ enum UsageFetchError: LocalizedError, Equatable {
         switch self {
         case .notSignedIn(let provider):
             return "Sign in to \(provider.displayName) to show usage."
-        case .keychainAccessRequired:
-            return "Allow Alerto to read the Claude Code login in Keychain, then refresh."
         case .sessionExpired(let provider):
             return "\(provider.displayName) session expired. Sign in again, then refresh."
         case .requestFailed(let provider, let status):

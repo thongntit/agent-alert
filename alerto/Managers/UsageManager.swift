@@ -24,8 +24,8 @@ final class UsageManager: ObservableObject {
         refreshTimer?.invalidate()
     }
 
-    /// Automatic refreshes are spaced five minutes apart. A manual refresh can request Keychain
-    /// access if needed, but is still coalesced for 30 seconds to avoid accidental API hammering.
+    /// Automatic refreshes are spaced five minutes apart. Manual refreshes are coalesced for
+    /// 30 seconds to avoid accidental API hammering.
     func refresh(manual: Bool = false) async {
         guard !isRefreshing else { return }
         let now = Date()
@@ -36,9 +36,7 @@ final class UsageManager: ObservableObject {
         lastAttemptAt = now
         defer { isRefreshing = false }
 
-        // Automatic refreshes can use an already-authorized Claude Keychain item without UI. A manual
-        // refresh may ask macOS for access, which lets the user choose "Always Allow" for later refreshes.
-        async let claude = result { try await client.fetchClaude(allowKeychainInteraction: manual) }
+        async let claude = result { try await client.fetchClaude() }
         async let codex = result { try await client.fetchCodex() }
 
         let results: [(UsageProvider, Result<ProviderUsage, Error>)] = [

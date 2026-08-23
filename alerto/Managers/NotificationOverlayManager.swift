@@ -51,16 +51,23 @@ class NotificationOverlayManager {
             guard let self = self else { return }
 
             if let screen = NSScreen.main {
-                let screenFrame = screen.frame
+                let screenFrame = screen.visibleFrame
                 let windowWidth: CGFloat = 400
                 let windowHeight: CGFloat = 100
                 let padding: CGFloat = 20
 
-                let xPosition = (screenFrame.width - windowWidth) / 2
-                let yPosition = screenFrame.height - windowHeight - padding - 50
+                let positionRaw = UserDefaults.standard.string(forKey: "overlayPosition") ?? OverlayPosition.topCenter.rawValue
+                let position = OverlayPosition(rawValue: positionRaw) ?? .topCenter
+
+                let origin = position.origin(
+                    in: screenFrame,
+                    size: NSSize(width: windowWidth, height: windowHeight),
+                    padding: padding,
+                    topInset: 0
+                )
 
                 window.setFrame(
-                    NSRect(x: xPosition, y: yPosition, width: windowWidth, height: windowHeight),
+                    NSRect(x: origin.x, y: origin.y, width: windowWidth, height: windowHeight),
                     display: true
                 )
             }

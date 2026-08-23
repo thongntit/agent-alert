@@ -34,6 +34,7 @@ struct SettingsView: View {
 struct GeneralSettingsView: View {
     @AppStorage("notificationStyle") private var notificationStyleRaw = NotificationStyle.overlay.rawValue
     @AppStorage("overlayDuration") private var overlayDuration = 3.0
+    @AppStorage("overlayPosition") private var overlayPositionRaw = OverlayPosition.topCenter.rawValue
     @AppStorage("playSound") private var playSound = true
     @AppStorage("selectedSound") private var selectedSound = "Glass"
     @AppStorage("showMenubarUsage") private var showMenubarUsage = true
@@ -54,6 +55,13 @@ struct GeneralSettingsView: View {
                     systemNotificationService.requestAuthorizationIfNeeded()
                 }
             }
+        )
+    }
+
+    private var overlayPosition: Binding<OverlayPosition> {
+        Binding(
+            get: { OverlayPosition(rawValue: overlayPositionRaw) ?? .topCenter },
+            set: { overlayPositionRaw = $0.rawValue }
         )
     }
 
@@ -114,6 +122,13 @@ struct GeneralSettingsView: View {
                         }
                         Slider(value: $overlayDuration, in: 1...10, step: 1)
                     }
+
+                    Picker("Overlay position", selection: overlayPosition) {
+                        ForEach(OverlayPosition.allCases) { position in
+                            Text(position.displayName).tag(position)
+                        }
+                    }
+                    .pickerStyle(.menu)
                 }
 
                 if notificationStyle.wrappedValue == .system,
