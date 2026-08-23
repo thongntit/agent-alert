@@ -5,13 +5,21 @@ import Combine
 class ClaudeCodeHookManager: ObservableObject {
     static let shared = ClaudeCodeHookManager()
 
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
+    private let claudeConfigURL: URL
+
+    init(
+        claudeConfigURL: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude"),
+        fileManager: FileManager = .default
+    ) {
+        self.claudeConfigURL = claudeConfigURL
+        self.fileManager = fileManager
+    }
 
     // MARK: - Configuration Paths
 
     var settingsPath: URL {
-        let home = fileManager.homeDirectoryForCurrentUser
-        return home.appendingPathComponent(".claude/settings.json")
+        claudeConfigURL.appendingPathComponent("settings.json")
     }
 
     // MARK: - Hook ID Prefix
@@ -86,6 +94,14 @@ class ClaudeCodeHookManager: ObservableObject {
             }
         }
         return false
+    }
+
+    func installedHookNames() -> Set<String> {
+        var names = Set<String>()
+        if isHookInstalled(hookId: Self.HookIds.stop) { names.insert("stop") }
+        if isHookInstalled(hookId: Self.HookIds.notification) { names.insert("notification") }
+        if isHookInstalled(hookId: Self.HookIds.sessionEnd) { names.insert("session-end") }
+        return names
     }
 
     // MARK: - Installation
@@ -259,14 +275,8 @@ class ClaudeCodeHookManager: ObservableObject {
 
         var hooks = settings["hooks"] as? [String: [[String: Any]]] ?? [:]
 
-        // Remove all hooks with alerto: prefix
-        let prefix = Self.hookIdPrefix
-
         for (event, eventHooks) in hooks {
-            hooks[event] = eventHooks.filter { hook in
-                guard let id = hook["id"] as? String else { return true }
-                return !id.hasPrefix(prefix)
-            }
+            hooks[event] = eventHooks.filter { !entryMatchesAlerto($0) }
 
             // Clean up empty arrays
             if hooks[event]?.isEmpty == true {
@@ -307,6 +317,6 @@ class ClaudeCodeHookManager: ObservableObject {
             try fileManager.createDirectory(at: claudeDir, withIntermediateDirectories: true)
         }
 
-        try data.write(to: settingsPath)
+        try data.write(to: settingsPath, options: .atomic)
     }
 }

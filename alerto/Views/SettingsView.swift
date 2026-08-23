@@ -11,7 +11,7 @@ struct SettingsView: View {
                     Label("General", systemImage: "gearshape")
                 }
 
-            IntegrationsSettingsView()
+            MultiAgentIntegrationsSettingsView()
                 .tabItem {
                     Label("Integrations", systemImage: "link")
                 }
@@ -42,6 +42,7 @@ struct GeneralSettingsView: View {
     @AppStorage("dedupWindowSeconds") private var dedupWindowSeconds = 5.0
 
     @StateObject private var serverManager = HTTPServerManager.shared
+    @StateObject private var integrationStore = CodingAgentIntegrationStore.shared
     @StateObject private var launchAtLoginService = LaunchAtLoginService.shared
     @StateObject private var systemNotificationService = SystemNotificationService.shared
     @State private var portString: String = ""
@@ -221,6 +222,7 @@ struct GeneralSettingsView: View {
                             if let port = port, port >= 1 && port <= 65535 {
                                 Task {
                                     await serverManager.updatePort(port)
+                                    integrationStore.updateInstalledIntegrations(port: port)
                                 }
                             }
                         }
@@ -673,7 +675,7 @@ struct OpenCodeIntegrationView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("OpenCode integration is no longer supported.")
+            Text("OpenCode is configured from the Coding Agents integration list.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
