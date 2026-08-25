@@ -13,6 +13,7 @@ A macOS menu bar application that displays intelligent notifications from Claude
 - **Remaining Usage**: Shows the Claude Code and Codex Session/Weekly quota still available from your existing CLI sign-ins
 - **Menu Bar Interface**: Accessible through system menu bar with minimal UI footprint
 - **Customizable Settings**: Configure notification sounds and display preferences
+- **Silence Hours**: Keep overnight agent notifications in history without overlays, system banners, or sound
 - **Notification History**: View and manage recent notifications
 - **Non-intrusive Design**: Runs as a menu bar utility (LSUIElement = true)
 
@@ -77,6 +78,7 @@ The app checks at launch and every five minutes. The manual refresh button is co
 The application supports several configurable options available in the Settings panel:
 
 - Enable/disable notification sounds
+- Configure silence hours for overnight or daytime schedules
 - Select from system notification sounds
 - View notification history
 - Clear all notifications
