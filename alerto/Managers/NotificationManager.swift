@@ -18,12 +18,23 @@ class NotificationManager: ObservableObject {
     @AppStorage("overlayDuration") private var overlayDuration = 3.0
     @AppStorage("dedupEnabled") private var dedupEnabled = true
     @AppStorage("dedupWindowSeconds") private var dedupWindowSeconds = 5.0
+    @AppStorage("silenceHoursEnabled") private var silenceHoursEnabled = false
+    @AppStorage("silenceHoursStartMinute") private var silenceHoursStartMinute = SilenceHoursSchedule.defaultStartMinute
+    @AppStorage("silenceHoursEndMinute") private var silenceHoursEndMinute = SilenceHoursSchedule.defaultEndMinute
 
     private var overlayTimer: Timer?
     private var deduplicator = NotificationDeduplicator()
 
     private var notificationStyle: NotificationStyle {
         NotificationStyle(rawValue: notificationStyleRaw) ?? .overlay
+    }
+
+    private var silenceHoursSchedule: SilenceHoursSchedule {
+        SilenceHoursSchedule(
+            isEnabled: silenceHoursEnabled,
+            startMinute: silenceHoursStartMinute,
+            endMinute: silenceHoursEndMinute
+        )
     }
 
     private init() {}
@@ -59,6 +70,12 @@ class NotificationManager: ObservableObject {
     private func showNotification(_ notification: AgenticNotification) {
         if isDuplicate(of: notification) {
             AppLogger.shared.info("Suppressed duplicate within \(Int(dedupWindowSeconds))s window", category: .notification)
+            return
+        }
+
+        if silenceHoursSchedule.isActive() {
+            AppLogger.shared.info("Silence hours active; notification saved to history", category: .display)
+            appendToHistory(notification)
             return
         }
 

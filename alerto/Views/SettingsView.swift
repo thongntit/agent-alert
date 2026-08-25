@@ -40,6 +40,9 @@ struct GeneralSettingsView: View {
     @AppStorage("showMenubarUsage") private var showMenubarUsage = true
     @AppStorage("dedupEnabled") private var dedupEnabled = true
     @AppStorage("dedupWindowSeconds") private var dedupWindowSeconds = 5.0
+    @AppStorage("silenceHoursEnabled") private var silenceHoursEnabled = false
+    @AppStorage("silenceHoursStartMinute") private var silenceHoursStartMinute = SilenceHoursSchedule.defaultStartMinute
+    @AppStorage("silenceHoursEndMinute") private var silenceHoursEndMinute = SilenceHoursSchedule.defaultEndMinute
 
     @StateObject private var serverManager = HTTPServerManager.shared
     @StateObject private var launchAtLoginService = LaunchAtLoginService.shared
@@ -63,6 +66,14 @@ struct GeneralSettingsView: View {
             get: { OverlayPosition(rawValue: overlayPositionRaw) ?? .topCenter },
             set: { overlayPositionRaw = $0.rawValue }
         )
+    }
+
+    private var silenceStartTime: Binding<Date> {
+        timeBinding(for: $silenceHoursStartMinute)
+    }
+
+    private var silenceEndTime: Binding<Date> {
+        timeBinding(for: $silenceHoursEndMinute)
     }
 
     let availableSounds = ["Glass", "Ping", "Pop", "Purr", "Blow", "Hero", "Submarine"]
@@ -145,6 +156,34 @@ struct GeneralSettingsView: View {
                             .buttonStyle(.link)
                             .font(.caption)
                         }
+                    }
+                }
+            }
+
+            Section("Silence Hours") {
+                Toggle("Silence notifications", isOn: $silenceHoursEnabled)
+
+                if silenceHoursEnabled {
+                    DatePicker(
+                        "From",
+                        selection: silenceStartTime,
+                        displayedComponents: .hourAndMinute
+                    )
+
+                    DatePicker(
+                        "Until",
+                        selection: silenceEndTime,
+                        displayedComponents: .hourAndMinute
+                    )
+
+                    Text("During silence hours, Alerto saves notifications to history without showing an overlay, posting a system notification, or playing a sound.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    if silenceHoursStartMinute == silenceHoursEndMinute {
+                        Text("Matching start and end times silence notifications all day.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
                     }
                 }
             }
@@ -250,6 +289,25 @@ struct GeneralSettingsView: View {
         if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension?Alerto") {
             NSWorkspace.shared.open(url)
         }
+    }
+
+    private func timeBinding(for minuteBinding: Binding<Int>) -> Binding<Date> {
+        Binding(
+            get: {
+                let minute = SilenceHoursSchedule.normalized(minuteBinding.wrappedValue)
+                return Calendar.autoupdatingCurrent.date(
+                    bySettingHour: minute / 60,
+                    minute: minute % 60,
+                    second: 0,
+                    of: Date()
+                ) ?? Date()
+            },
+            set: { date in
+                let components = Calendar.autoupdatingCurrent.dateComponents([.hour, .minute], from: date)
+                guard let hour = components.hour, let minute = components.minute else { return }
+                minuteBinding.wrappedValue = hour * 60 + minute
+            }
+        )
     }
 
     private var statusColor: Color {
