@@ -7,6 +7,17 @@ final class UsageSnapshotTests: XCTestCase {
         XCTAssertEqual(UsageProvider.codex.brandColorHex, "#10A37F")
     }
 
+    func testUsageAuthErrorsExplainReauthenticationState() {
+        XCTAssertEqual(
+            UsageFetchError.invalidToken(.claude).errorDescription,
+            "The token Alerto is using for Claude Code is invalid. Authenticate again."
+        )
+        XCTAssertEqual(
+            UsageFetchError.rateLimited(.claude).errorDescription,
+            "Claude Code usage is rate limited (HTTP 429). It will be checked again on the next scheduled refresh."
+        )
+    }
+
     func testMapsClaudeRemainingSessionAndWeeklyLimits() throws {
         let usage = try UsageResponseMapper.claude(data: Data(#"""
         {

@@ -69,9 +69,9 @@ See the official [Codex Hooks](https://developers.openai.com/codex/hooks) and [A
 
 ### Remaining Claude Code and Codex Usage
 
-Alerto can show your remaining Claude Code and Codex Session/Weekly quotas at the top of its menu without requiring OpenUsage. It reads Claude Code's OAuth login from `~/.claude/.credentials.json` (or `CLAUDE_CONFIG_DIR`) and does not request access to Claude Code's macOS Keychain item. It reads the Codex CLI login from `~/.codex/auth.json` (respecting `CODEX_HOME`). Quota checks never invoke a model or start an agent turn. If an OAuth session must be refreshed, Alerto writes the refreshed tokens back to the same credential source.
+Alerto can show your remaining Claude Code and Codex Session/Weekly quotas at the top of its menu without requiring OpenUsage. It reads Claude Code's OAuth login from its local cache at `~/.claude/.credentials.json` (or `CLAUDE_CONFIG_DIR`). If that cache is missing or stale, a manual refresh may read Claude Code's macOS Keychain item once and save the credential document to the cache; automatic refreshes never query that Keychain item. It reads the Codex CLI login from `~/.codex/auth.json` (respecting `CODEX_HOME`). Quota checks never invoke a model or start an agent turn. If an OAuth session must be refreshed, Alerto writes the refreshed tokens back to the same credential source.
 
-The app checks at launch and every five minutes. The manual refresh button is coalesced for 30 seconds to avoid accidental repeated requests. If the Claude credential file is unavailable, Alerto reports that Claude Code is not signed in instead of showing a Keychain authorization prompt.
+The app checks at launch and every five minutes. The manual refresh button is coalesced for 30 seconds to avoid accidental repeated requests. Keychain bootstrap is manual-only so an automatic poll cannot repeatedly trigger macOS authorization prompts. If neither the cache nor the Keychain has a usable Claude credential, Alerto reports an invalid or unavailable token.
 
 ## Configuration
 
