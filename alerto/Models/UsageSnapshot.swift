@@ -75,6 +75,8 @@ struct UsageLimit: Identifiable, Equatable {
 enum UsageFetchError: LocalizedError, Equatable {
     case notSignedIn(UsageProvider)
     case sessionExpired(UsageProvider)
+    case invalidToken(UsageProvider)
+    case rateLimited(UsageProvider)
     case requestFailed(UsageProvider, Int)
     case invalidResponse(UsageProvider)
     case connectionFailed(UsageProvider)
@@ -82,9 +84,13 @@ enum UsageFetchError: LocalizedError, Equatable {
     var errorDescription: String? {
         switch self {
         case .notSignedIn(let provider):
-            return "Sign in to \(provider.displayName) to show usage."
+            return "Alerto could not find a usable token for \(provider.displayName). Authenticate again."
         case .sessionExpired(let provider):
             return "\(provider.displayName) session expired. Sign in again, then refresh."
+        case .invalidToken(let provider):
+            return "The token Alerto is using for \(provider.displayName) is invalid. Authenticate again."
+        case .rateLimited(let provider):
+            return "\(provider.displayName) usage is rate limited (HTTP 429). It will be checked again on the next scheduled refresh."
         case .requestFailed(let provider, let status):
             return "\(provider.displayName) usage request failed (HTTP \(status))."
         case .invalidResponse(let provider):

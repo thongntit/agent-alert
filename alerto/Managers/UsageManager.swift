@@ -8,6 +8,7 @@ final class UsageManager: ObservableObject {
 
     @Published private(set) var snapshot: UsageSnapshot?
     @Published private(set) var providerErrors: [UsageProvider: String] = [:]
+    @Published private(set) var providerErrorKinds: [UsageProvider: UsageFetchError] = [:]
     @Published private(set) var isRefreshing = false
     @Published private(set) var lastRefreshAt: Date?
 
@@ -36,7 +37,9 @@ final class UsageManager: ObservableObject {
         lastAttemptAt = now
         defer { isRefreshing = false }
 
-        async let claude = result { try await client.fetchClaude() }
+        // Automatic refreshes stay file-only. A manual refresh may bootstrap the
+        // cache from Claude Code's Keychain when the file is missing or stale.
+        async let claude = result { try await client.fetchClaude(allowKeychainBootstrap: manual) }
         async let codex = result { try await client.fetchCodex() }
 
         let results: [(UsageProvider, Result<ProviderUsage, Error>)] = [
@@ -46,6 +49,7 @@ final class UsageManager: ObservableObject {
 
         var updated = snapshot ?? UsageSnapshot(generatedAt: now, providers: [])
         var errors: [UsageProvider: String] = [:]
+        var errorKinds: [UsageProvider: UsageFetchError] = [:]
         for (provider, result) in results {
             switch result {
             case .success(let usage):
@@ -53,11 +57,15 @@ final class UsageManager: ObservableObject {
             case .failure(let error):
                 updated.markStale(provider)
                 errors[provider] = error.localizedDescription
+                if let usageError = error as? UsageFetchError {
+                    errorKinds[provider] = usageError
+                }
             }
         }
 
         snapshot = updated.providers.isEmpty ? nil : updated
         providerErrors = errors
+        providerErrorKinds = errorKinds
         lastRefreshAt = Date()
     }
 

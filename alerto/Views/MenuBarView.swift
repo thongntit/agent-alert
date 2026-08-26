@@ -8,6 +8,7 @@ struct MenuBarView: View {
     @State private var isClearAllHovered = false
     @State private var isSettingsHovered = false
     @State private var isQuitHovered = false
+    @State private var authLaunchError: String?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -35,6 +36,17 @@ struct MenuBarView: View {
         }
         .frame(width: 360)
         .frame(maxHeight: 700)
+        .alert(
+            "Claude Code authentication",
+            isPresented: Binding(
+                get: { authLaunchError != nil },
+                set: { if !$0 { authLaunchError = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(authLaunchError ?? "")
+        }
     }
     
     private var headerView: some View {
@@ -114,11 +126,16 @@ struct MenuBarView: View {
             if let snapshot = usageManager.snapshot {
                 ForEach(UsageProvider.allCases) { provider in
                     if let providerUsage = snapshot.usage(for: provider) {
-                        ProviderUsageCard(providerUsage: providerUsage)
+                        ProviderUsageCard(
+                            providerUsage: providerUsage,
+                            errorMessage: providerUsage.isStale ? usageManager.providerErrors[provider] : nil,
+                            action: providerUsage.isStale ? reauthenticationAction(for: provider) : nil
+                        )
                     } else {
                         ProviderUsageUnavailableCard(
                             provider: provider,
-                            message: usageManager.providerErrors[provider] ?? "No live limits reported"
+                            message: usageManager.providerErrors[provider] ?? "No live limits reported",
+                            action: reauthenticationAction(for: provider)
                         )
                     }
                 }
@@ -134,13 +151,36 @@ struct MenuBarView: View {
                 ForEach(UsageProvider.allCases) { provider in
                     ProviderUsageUnavailableCard(
                         provider: provider,
-                        message: usageManager.providerErrors[provider] ?? "No live limits reported"
+                        message: usageManager.providerErrors[provider] ?? "No live limits reported",
+                        action: reauthenticationAction(for: provider)
                     )
                 }
             }
         }
         .padding(12)
         .background(Color(NSColor.controlBackgroundColor))
+    }
+
+    private func reauthenticationAction(for provider: UsageProvider) -> (() -> Void)? {
+        guard provider == .claude,
+              let error = usageManager.providerErrorKinds[provider] else {
+            return nil
+        }
+
+        switch error {
+        case .invalidToken, .notSignedIn:
+            return { reauthenticateClaude() }
+        default:
+            return nil
+        }
+    }
+
+    private func reauthenticateClaude() {
+        do {
+            try ClaudeAuthenticationService.shared.launchLogin()
+        } catch {
+            authLaunchError = error.localizedDescription
+        }
     }
 
     private var statusColor: Color {
@@ -241,18 +281,24 @@ struct MenuBarView: View {
 private struct ProviderUsageUnavailableCard: View {
     let provider: UsageProvider
     let message: String
+    let action: (() -> Void)?
 
     var body: some View {
         HStack(alignment: .top, spacing: 7) {
             ProviderIconView(provider: provider, size: 14)
                 .foregroundColor(Color(hex: provider.brandColorHex))
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(provider.displayName)
                     .font(.system(size: 12, weight: .medium))
                 Text(message)
                     .font(.system(size: 11))
                     .foregroundColor(.secondary)
+                if let action {
+                    Button(provider == .claude ? "Authenticate again" : "Authenticate", action: action)
+                        .font(.system(size: 11, weight: .medium))
+                        .buttonStyle(.link)
+                }
             }
             Spacer(minLength: 0)
         }
@@ -267,6 +313,18 @@ private struct ProviderUsageUnavailableCard: View {
 
 private struct ProviderUsageCard: View {
     let providerUsage: ProviderUsage
+    let errorMessage: String?
+    let action: (() -> Void)?
+
+    init(
+        providerUsage: ProviderUsage,
+        errorMessage: String? = nil,
+        action: (() -> Void)? = nil
+    ) {
+        self.providerUsage = providerUsage
+        self.errorMessage = errorMessage
+        self.action = action
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -298,6 +356,17 @@ private struct ProviderUsageCard: View {
             } else {
                 ForEach(providerUsage.limits) { limit in
                     UsageLimitRow(limit: limit, tint: tint)
+                }
+            }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                if let action {
+                    Button("Authenticate again", action: action)
+                        .font(.system(size: 11, weight: .medium))
+                        .buttonStyle(.link)
                 }
             }
         }
