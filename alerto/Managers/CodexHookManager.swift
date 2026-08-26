@@ -95,6 +95,10 @@ final class CodexHookManager: ObservableObject {
         return HookName.allCases.contains { containsHandler(marker: $0.marker, in: hooks) }
     }
 
+    func installedHookNames() -> Set<String> {
+        Set(HookName.allCases.filter { isHookInstalled(name: $0.rawValue) }.map(\.rawValue))
+    }
+
     func installHooks(port: Int) throws {
         var root = try loadConfiguration(createIfMissing: true)
         var hooks = (root["hooks"] as? [String: Any]) ?? [:]
