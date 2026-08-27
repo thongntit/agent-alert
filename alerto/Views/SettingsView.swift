@@ -37,7 +37,6 @@ struct GeneralSettingsView: View {
     @AppStorage("overlayPosition") private var overlayPositionRaw = OverlayPosition.topCenter.rawValue
     @AppStorage("playSound") private var playSound = true
     @AppStorage("selectedSound") private var selectedSound = "Glass"
-    @AppStorage("showMenubarUsage") private var showMenubarUsage = true
     @AppStorage("dedupEnabled") private var dedupEnabled = true
     @AppStorage("dedupWindowSeconds") private var dedupWindowSeconds = 5.0
     @AppStorage("silenceHoursEnabled") private var silenceHoursEnabled = false
@@ -104,13 +103,6 @@ struct GeneralSettingsView: View {
                 }
             }
 
-            Section("Menu Bar") {
-                Toggle("Show remaining usage", isOn: $showMenubarUsage)
-
-                Text("Shows Claude Code and Codex session and weekly percentages beside the bell.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
 
             Section("Notifications") {
                 Picker("Notification style", selection: notificationStyle) {
@@ -325,6 +317,7 @@ struct GeneralSettingsView: View {
 }
 
 struct IntegrationsSettingsView: View {
+    @AppStorage("showMenubarUsage") private var showMenubarUsage = true
     @StateObject private var serverManager = HTTPServerManager.shared
 
     var body: some View {
@@ -334,6 +327,13 @@ struct IntegrationsSettingsView: View {
                     .font(.title2)
                     .fontWeight(.semibold)
 
+                Section("Usage") {
+                    Toggle("Show remaining usage", isOn: $showMenubarUsage)
+
+                    Text("Shows Claude Code and Codex session and weekly percentages beside the bell.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
                 ClaudeCodeIntegrationView(port: serverManager.port)
 
                 Divider()
