@@ -46,6 +46,17 @@ final class HookPayloadTests: XCTestCase {
         XCTAssertEqual(codex.displayContent.subtitle, "Codex")
     }
 
+    func testManagedAgentSourcesUseGenericLifecycleTitles() {
+        let pi = AgenticNotification(source: .pi, type: .complete, message: "Pi finished responding")
+        XCTAssertEqual(pi.displayContent.title, "Pi finished responding")
+
+        let omp = AgenticNotification(source: .omp, type: .permission, message: "Approval required")
+        XCTAssertEqual(omp.displayContent.title, "Oh My Pi needs your approval")
+
+        let opencode = AgenticNotification(source: .opencode, type: .question, message: "Input required")
+        XCTAssertEqual(opencode.displayContent.title, "OpenCode needs your input")
+    }
+
     private func decode(_ json: String) throws -> HookPayload {
         try JSONDecoder().decode(HookPayload.self, from: Data(json.utf8))
     }
