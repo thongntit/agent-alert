@@ -8,14 +8,27 @@ import Security
 struct UsageClient {
     private let session: URLSession
     private let fileManager: FileManager
+    private let environment: [String: String]
+    private let keychainDataProvider: ((String, Bool) -> Data?)?
 
-    init(session: URLSession = .shared, fileManager: FileManager = .default) {
+    init(
+        session: URLSession = .shared,
+        fileManager: FileManager = .default,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        keychainDataProvider: ((String, Bool) -> Data?)? = nil
+    ) {
         self.session = session
         self.fileManager = fileManager
+        self.environment = environment
+        self.keychainDataProvider = keychainDataProvider
     }
 
     func fetchClaude(allowKeychainBootstrap: Bool = false) async throws -> ProviderUsage {
-        let reader = LocalCredentialReader(fileManager: fileManager)
+        let reader = LocalCredentialReader(
+            fileManager: fileManager,
+            environment: environment,
+            keychainDataProvider: keychainDataProvider
+        )
         var importedFromKeychain = false
         var credentials: ClaudeLocalCredentials
 
@@ -85,6 +98,10 @@ struct UsageClient {
         }
         if response.statusCode == 429 {
             throw UsageFetchError.rateLimited(.claude)
+        }
+        if response.statusCode == 400,
+           Self.isInvalidClaudeOAuthCredentialResponse(data) {
+            throw UsageFetchError.invalidToken(.claude)
         }
         guard (200..<300).contains(response.statusCode) else {
             throw UsageFetchError.requestFailed(.claude, response.statusCode)
@@ -176,6 +193,11 @@ struct UsageClient {
             if response.statusCode == 429 {
                 throw UsageFetchError.rateLimited(provider)
             }
+            if response.statusCode == 400,
+               provider == .claude,
+               Self.isInvalidClaudeOAuthCredentialResponse(data) {
+                throw UsageFetchError.invalidToken(provider)
+            }
             guard (200..<300).contains(response.statusCode) else {
                 throw UsageFetchError.requestFailed(provider, response.statusCode)
             }
@@ -187,6 +209,22 @@ struct UsageClient {
         } catch {
             throw UsageFetchError.invalidResponse(provider)
         }
+    }
+
+    private static func isInvalidClaudeOAuthCredentialResponse(_ data: Data) -> Bool {
+        guard let body = String(data: data, encoding: .utf8)?.lowercased() else {
+            return false
+        }
+
+        if body.contains("invalid_grant") {
+            return true
+        }
+
+        return body.contains("token") && (
+            body.contains("revoked") ||
+            body.contains("expired") ||
+            body.contains("invalid")
+        )
     }
 }
 
