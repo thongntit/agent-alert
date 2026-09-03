@@ -3,27 +3,65 @@ import LocalAuthentication
 import Security
 
 /// A read-only quota client based on the endpoints used by the Claude Code and Codex CLIs.
-/// It never invokes a model or starts a coding session.
+/// It never invokes a model or starts a coding session. Claude credentials are read from
+/// Alerto's local cache; a manual refresh can bootstrap that cache from Claude Code's Keychain.
 struct UsageClient {
     private let session: URLSession
     private let fileManager: FileManager
+    private let environment: [String: String]
+    private let keychainDataProvider: ((String, Bool) -> Data?)?
 
-    init(session: URLSession = .shared, fileManager: FileManager = .default) {
+    init(
+        session: URLSession = .shared,
+        fileManager: FileManager = .default,
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        keychainDataProvider: ((String, Bool) -> Data?)? = nil
+    ) {
         self.session = session
         self.fileManager = fileManager
+        self.environment = environment
+        self.keychainDataProvider = keychainDataProvider
     }
 
-    func fetchClaude() async throws -> ProviderUsage {
-        var credentials = try LocalCredentialReader(fileManager: fileManager)
-            .claudeCredentials()
+    func fetchClaude(allowKeychainBootstrap: Bool = false) async throws -> ProviderUsage {
+        let reader = LocalCredentialReader(
+            fileManager: fileManager,
+            environment: environment,
+            keychainDataProvider: keychainDataProvider
+        )
+        var importedFromKeychain = false
+        var credentials: ClaudeLocalCredentials
+
+        do {
+            credentials = try reader.claudeCredentials()
+        } catch let error as UsageFetchError {
+            guard allowKeychainBootstrap else { throw error }
+            switch error {
+            case .notSignedIn(.claude), .invalidToken(.claude):
+                credentials = try reader.importClaudeFromKeychain()
+                importedFromKeychain = true
+            default:
+                throw error
+            }
+        }
 
         do {
             return try await fetchClaude(credentials: credentials)
-        } catch UsageFetchError.sessionExpired(.claude) {
-            guard let refreshToken = credentials.refreshToken else {
-                throw UsageFetchError.sessionExpired(.claude)
+        } catch UsageFetchError.invalidToken(.claude) {
+            if let refreshToken = credentials.refreshToken {
+                do {
+                    credentials = try await refreshClaude(credentials, refreshToken: refreshToken)
+                    return try await fetchClaude(credentials: credentials)
+                } catch UsageFetchError.invalidToken(.claude) {
+                    // The refresh token can be stale while Claude Code's Keychain
+                    // still has a current login. Fall through to a manual import.
+                }
             }
-            credentials = try await refreshClaude(credentials, refreshToken: refreshToken)
+
+            guard allowKeychainBootstrap, !importedFromKeychain else {
+                throw UsageFetchError.invalidToken(.claude)
+            }
+            credentials = try reader.importClaudeFromKeychain()
             return try await fetchClaude(credentials: credentials)
         }
     }
@@ -52,11 +90,25 @@ struct UsageClient {
         ])
 
         let (data, response) = try await session.data(for: request)
-        guard let response = response as? HTTPURLResponse,
-              (200..<300).contains(response.statusCode),
-              let refreshed = try? JSONDecoder().decode(ClaudeTokenResponse.self, from: data),
+        guard let response = response as? HTTPURLResponse else {
+            throw UsageFetchError.invalidResponse(.claude)
+        }
+        if response.statusCode == 401 || response.statusCode == 403 {
+            throw UsageFetchError.invalidToken(.claude)
+        }
+        if response.statusCode == 429 {
+            throw UsageFetchError.rateLimited(.claude)
+        }
+        if response.statusCode == 400,
+           Self.isInvalidClaudeOAuthCredentialResponse(data) {
+            throw UsageFetchError.invalidToken(.claude)
+        }
+        guard (200..<300).contains(response.statusCode) else {
+            throw UsageFetchError.requestFailed(.claude, response.statusCode)
+        }
+        guard let refreshed = try? JSONDecoder().decode(ClaudeTokenResponse.self, from: data),
               !refreshed.accessToken.isEmpty else {
-            throw UsageFetchError.sessionExpired(.claude)
+            throw UsageFetchError.invalidResponse(.claude)
         }
 
         var updated = credentials
@@ -70,8 +122,8 @@ struct UsageClient {
         var credentials = try LocalCredentialReader(fileManager: fileManager).codexCredentials()
         do {
             return try await fetchCodex(credentials: credentials)
-        } catch UsageFetchError.sessionExpired(.codex) {
-            guard let refreshToken = credentials.refreshToken else { throw UsageFetchError.sessionExpired(.codex) }
+        } catch UsageFetchError.invalidToken(.codex) {
+            guard let refreshToken = credentials.refreshToken else { throw UsageFetchError.invalidToken(.codex) }
             credentials = try await refreshCodex(credentials, refreshToken: refreshToken)
             return try await fetchCodex(credentials: credentials)
         }
@@ -100,10 +152,21 @@ struct UsageClient {
         request.httpBody = Data(body.utf8)
 
         let (data, response) = try await session.data(for: request)
-        guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode),
-              let refreshed = try? JSONDecoder().decode(CodexTokenResponse.self, from: data),
+        guard let response = response as? HTTPURLResponse else {
+            throw UsageFetchError.invalidResponse(.codex)
+        }
+        if response.statusCode == 401 || response.statusCode == 403 {
+            throw UsageFetchError.invalidToken(.codex)
+        }
+        if response.statusCode == 429 {
+            throw UsageFetchError.rateLimited(.codex)
+        }
+        guard (200..<300).contains(response.statusCode) else {
+            throw UsageFetchError.requestFailed(.codex, response.statusCode)
+        }
+        guard let refreshed = try? JSONDecoder().decode(CodexTokenResponse.self, from: data),
               !refreshed.accessToken.isEmpty else {
-            throw UsageFetchError.sessionExpired(.codex)
+            throw UsageFetchError.invalidResponse(.codex)
         }
 
         var updated = credentials
@@ -125,7 +188,15 @@ struct UsageClient {
                 throw UsageFetchError.invalidResponse(provider)
             }
             if response.statusCode == 401 || response.statusCode == 403 {
-                throw UsageFetchError.sessionExpired(provider)
+                throw UsageFetchError.invalidToken(provider)
+            }
+            if response.statusCode == 429 {
+                throw UsageFetchError.rateLimited(provider)
+            }
+            if response.statusCode == 400,
+               provider == .claude,
+               Self.isInvalidClaudeOAuthCredentialResponse(data) {
+                throw UsageFetchError.invalidToken(provider)
             }
             guard (200..<300).contains(response.statusCode) else {
                 throw UsageFetchError.requestFailed(provider, response.statusCode)
@@ -139,41 +210,125 @@ struct UsageClient {
             throw UsageFetchError.invalidResponse(provider)
         }
     }
+
+    private static func isInvalidClaudeOAuthCredentialResponse(_ data: Data) -> Bool {
+        guard let body = String(data: data, encoding: .utf8)?.lowercased() else {
+            return false
+        }
+
+        if body.contains("invalid_grant") {
+            return true
+        }
+
+        return body.contains("token") && (
+            body.contains("revoked") ||
+            body.contains("expired") ||
+            body.contains("invalid")
+        )
+    }
 }
 
 struct LocalCredentialReader {
     private let fileManager: FileManager
     private let environment: [String: String]
+    private let keychainDataProvider: (String, Bool) -> Data?
 
     init(
         fileManager: FileManager,
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        keychainDataProvider: ((String, Bool) -> Data?)? = nil
     ) {
         self.fileManager = fileManager
         self.environment = environment
+        self.keychainDataProvider = keychainDataProvider ?? { service, allowPrompt in
+            LocalCredentialReader.readKeychainData(service: service, allowPrompt: allowPrompt)
+        }
     }
 
     func claudeCredentials() throws -> ClaudeLocalCredentials {
-        let configurationHome = environment["CLAUDE_CONFIG_DIR"]
-            ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".claude").path
-        let path = URL(fileURLWithPath: configurationHome).appendingPathComponent(".credentials.json")
-        if let data = try? Data(contentsOf: path),
-           let credentials = try? JSONDecoder().decode(ClaudeCredentials.self, from: data),
-           let oauth = credentials.claudeAiOauth,
-           let accessToken = oauth.accessToken,
-           !accessToken.isEmpty {
-            return ClaudeLocalCredentials(
-                accessToken: accessToken,
-                refreshToken: oauth.refreshToken,
-                path: path
-            )
+        let path = claudeCredentialsPath()
+        if let credentials = readClaudeCredentials(at: path) {
+            return credentials
         }
-        throw UsageFetchError.notSignedIn(.claude)
+
+        let fileError: UsageFetchError = fileManager.fileExists(atPath: path.path)
+            ? .invalidToken(.claude)
+            : .notSignedIn(.claude)
+        throw fileError
+    }
+
+    /// Imports Claude Code's macOS Keychain credential once and caches the exact
+    /// credential document in the file Alerto uses for subsequent refreshes.
+    func importClaudeFromKeychain() throws -> ClaudeLocalCredentials {
+        let path = claudeCredentialsPath()
+        guard let data = keychainDataProvider("Claude Code-credentials", true),
+              let credentials = decodeClaudeCredentials(data: data, path: path) else {
+            throw UsageFetchError.invalidToken(.claude)
+        }
+
+        try saveClaudeDocument(data, to: path)
+        return credentials
     }
 
     func saveClaude(_ credentials: ClaudeLocalCredentials) throws {
-        let oauth = ClaudeOAuth(accessToken: credentials.accessToken, refreshToken: credentials.refreshToken)
-        try JSONEncoder().encode(ClaudeCredentials(claudeAiOauth: oauth)).write(to: credentials.path, options: .atomic)
+        var document: [String: Any]
+        if let data = try? Data(contentsOf: credentials.path),
+           let object = try? JSONSerialization.jsonObject(with: data),
+           let existing = object as? [String: Any] {
+            document = existing
+        } else {
+            document = [:]
+        }
+
+        var oauth = document["claudeAiOauth"] as? [String: Any] ?? [:]
+        oauth["accessToken"] = credentials.accessToken
+        if let refreshToken = credentials.refreshToken {
+            oauth["refreshToken"] = refreshToken
+        } else {
+            oauth.removeValue(forKey: "refreshToken")
+        }
+        document["claudeAiOauth"] = oauth
+
+        let data = try JSONSerialization.data(withJSONObject: document, options: [.sortedKeys])
+        try saveClaudeDocument(data, to: credentials.path)
+    }
+
+    private func claudeCredentialsPath() -> URL {
+        let configurationHome = environment["CLAUDE_CONFIG_DIR"].flatMap { value in
+            value.isEmpty ? nil : value
+        } ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".claude").path
+        return URL(fileURLWithPath: configurationHome).appendingPathComponent(".credentials.json")
+    }
+
+    private func readClaudeCredentials(at path: URL) -> ClaudeLocalCredentials? {
+        guard let data = try? Data(contentsOf: path) else { return nil }
+        return decodeClaudeCredentials(data: data, path: path)
+    }
+
+    private func decodeClaudeCredentials(data: Data, path: URL) -> ClaudeLocalCredentials? {
+        guard let credentials = try? JSONDecoder().decode(ClaudeCredentials.self, from: data),
+              let oauth = credentials.claudeAiOauth,
+              let accessToken = oauth.accessToken,
+              !accessToken.isEmpty else {
+            return nil
+        }
+        return ClaudeLocalCredentials(
+            accessToken: accessToken,
+            refreshToken: oauth.refreshToken,
+            path: path
+        )
+    }
+
+    private func saveClaudeDocument(_ data: Data, to path: URL) throws {
+        try fileManager.createDirectory(
+            at: path.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: path, options: .atomic)
+        try fileManager.setAttributes(
+            [.posixPermissions: 0o600],
+            ofItemAtPath: path.path
+        )
     }
 
     fileprivate func codexCredentials() throws -> CodexCredentials {
@@ -201,7 +356,7 @@ struct LocalCredentialReader {
             return CodexCredentials(accessToken: accessToken, refreshToken: credentials.tokens?.refreshToken, idToken: credentials.tokens?.idToken, accountID: credentials.tokens?.accountID, source: .file(path))
         }
 
-        if let data = keychainData(service: "Codex Auth"),
+        if let data = keychainDataProvider("Codex Auth", false),
            let credentials = try? JSONDecoder().decode(CodexAuthFile.self, from: data),
            let accessToken = credentials.tokens?.accessToken,
            !accessToken.isEmpty {
@@ -222,16 +377,18 @@ struct LocalCredentialReader {
         }
     }
 
-    private func keychainData(service: String) -> Data? {
-        let context = LAContext()
-        context.interactionNotAllowed = true
-        let query: [String: Any] = [
+    private static func readKeychainData(service: String, allowPrompt: Bool) -> Data? {
+        var query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-            kSecUseAuthenticationContext as String: context
+            kSecMatchLimit as String: kSecMatchLimitOne
         ]
+        if !allowPrompt {
+            let context = LAContext()
+            context.interactionNotAllowed = true
+            query[kSecUseAuthenticationContext as String] = context
+        }
         var item: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess else { return nil }
         return item as? Data

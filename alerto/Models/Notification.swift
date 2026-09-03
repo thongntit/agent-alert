@@ -3,6 +3,8 @@ import Foundation
 enum NotificationSource: String, Codable, CaseIterable {
     case claude = "claude"
     case codex = "codex"
+    case pi = "pi"
+    case omp = "omp"
     case opencode = "opencode"
     case cursor = "cursor"
     case windsurf = "windsurf"
@@ -12,6 +14,8 @@ enum NotificationSource: String, Codable, CaseIterable {
         switch self {
         case .claude: return "Claude Code"
         case .codex: return "Codex"
+        case .pi: return "Pi"
+        case .omp: return "Oh My Pi"
         case .opencode: return "OpenCode"
         case .cursor: return "Cursor"
         case .windsurf: return "Windsurf"
@@ -23,6 +27,8 @@ enum NotificationSource: String, Codable, CaseIterable {
         switch self {
         case .claude: return "brain.head.profile"
         case .codex: return "terminal.fill"
+        case .pi: return "function"
+        case .omp: return "terminal"
         case .opencode: return "chevron.left.forwardslash.chevron.right"
         case .cursor: return "cursorarrow"
         case .windsurf: return "wind"
@@ -154,6 +160,23 @@ struct AgenticNotification: Identifiable, Codable {
         if let context = hookType?.contextTitle(for: source) {
             return (title: context, subtitle: source.displayName, body: truncatedMessage)
         }
-        return (title: source.displayName, subtitle: nil, body: truncatedMessage)
+        let title: String
+        switch type {
+        case .complete:
+            title = "\(source.displayName) finished responding"
+        case .permission:
+            title = "\(source.displayName) needs your approval"
+        case .question, .attention:
+            title = "\(source.displayName) needs your input"
+        case .error:
+            title = "\(source.displayName) reported an error"
+        case .idle:
+            title = "\(source.displayName) is idle"
+        case .start:
+            title = "\(source.displayName) started"
+        case .stop:
+            title = "\(source.displayName) stopped"
+        }
+        return (title: title, subtitle: source.displayName, body: truncatedMessage)
     }
 }

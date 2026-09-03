@@ -11,7 +11,7 @@ struct SettingsView: View {
                     Label("General", systemImage: "gearshape")
                 }
 
-            IntegrationsSettingsView()
+            MultiAgentIntegrationsSettingsView()
                 .tabItem {
                     Label("Integrations", systemImage: "link")
                 }
@@ -37,11 +37,14 @@ struct GeneralSettingsView: View {
     @AppStorage("overlayPosition") private var overlayPositionRaw = OverlayPosition.topCenter.rawValue
     @AppStorage("playSound") private var playSound = true
     @AppStorage("selectedSound") private var selectedSound = "Glass"
-    @AppStorage("showMenubarUsage") private var showMenubarUsage = true
     @AppStorage("dedupEnabled") private var dedupEnabled = true
     @AppStorage("dedupWindowSeconds") private var dedupWindowSeconds = 5.0
+    @AppStorage("silenceHoursEnabled") private var silenceHoursEnabled = false
+    @AppStorage("silenceHoursStartMinute") private var silenceHoursStartMinute = SilenceHoursSchedule.defaultStartMinute
+    @AppStorage("silenceHoursEndMinute") private var silenceHoursEndMinute = SilenceHoursSchedule.defaultEndMinute
 
     @StateObject private var serverManager = HTTPServerManager.shared
+    @StateObject private var integrationStore = CodingAgentIntegrationStore.shared
     @StateObject private var launchAtLoginService = LaunchAtLoginService.shared
     @StateObject private var systemNotificationService = SystemNotificationService.shared
     @State private var portString: String = ""
@@ -63,6 +66,14 @@ struct GeneralSettingsView: View {
             get: { OverlayPosition(rawValue: overlayPositionRaw) ?? .topCenter },
             set: { overlayPositionRaw = $0.rawValue }
         )
+    }
+
+    private var silenceStartTime: Binding<Date> {
+        timeBinding(for: $silenceHoursStartMinute)
+    }
+
+    private var silenceEndTime: Binding<Date> {
+        timeBinding(for: $silenceHoursEndMinute)
     }
 
     let availableSounds = ["Glass", "Ping", "Pop", "Purr", "Blow", "Hero", "Submarine"]
@@ -90,14 +101,6 @@ struct GeneralSettingsView: View {
                     .buttonStyle(.link)
                     .font(.caption)
                 }
-            }
-
-            Section("Menu Bar") {
-                Toggle("Show remaining usage", isOn: $showMenubarUsage)
-
-                Text("Shows Claude Code and Codex session and weekly percentages beside the bell.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
             }
 
             Section("Notifications") {
@@ -145,6 +148,34 @@ struct GeneralSettingsView: View {
                             .buttonStyle(.link)
                             .font(.caption)
                         }
+                    }
+                }
+            }
+
+            Section("Silence Hours") {
+                Toggle("Silence notifications", isOn: $silenceHoursEnabled)
+
+                if silenceHoursEnabled {
+                    DatePicker(
+                        "From",
+                        selection: silenceStartTime,
+                        displayedComponents: .hourAndMinute
+                    )
+
+                    DatePicker(
+                        "Until",
+                        selection: silenceEndTime,
+                        displayedComponents: .hourAndMinute
+                    )
+
+                    Text("During silence hours, Alerto saves notifications to history without showing an overlay, posting a system notification, or playing a sound.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    if silenceHoursStartMinute == silenceHoursEndMinute {
+                        Text("Matching start and end times silence notifications all day.")
+                            .font(.caption)
+                            .foregroundColor(.orange)
                     }
                 }
             }
@@ -221,6 +252,7 @@ struct GeneralSettingsView: View {
                             if let port = port, port >= 1 && port <= 65535 {
                                 Task {
                                     await serverManager.updatePort(port)
+                                    integrationStore.updateInstalledIntegrations(port: port)
                                 }
                             }
                         }
@@ -252,6 +284,25 @@ struct GeneralSettingsView: View {
         }
     }
 
+    private func timeBinding(for minuteBinding: Binding<Int>) -> Binding<Date> {
+        Binding(
+            get: {
+                let minute = SilenceHoursSchedule.normalized(minuteBinding.wrappedValue)
+                return Calendar.autoupdatingCurrent.date(
+                    bySettingHour: minute / 60,
+                    minute: minute % 60,
+                    second: 0,
+                    of: Date()
+                ) ?? Date()
+            },
+            set: { date in
+                let components = Calendar.autoupdatingCurrent.dateComponents([.hour, .minute], from: date)
+                guard let hour = components.hour, let minute = components.minute else { return }
+                minuteBinding.wrappedValue = hour * 60 + minute
+            }
+        )
+    }
+
     private var statusColor: Color {
         switch serverManager.status {
         case .running:
@@ -265,6 +316,8 @@ struct GeneralSettingsView: View {
 }
 
 struct IntegrationsSettingsView: View {
+    @AppStorage("showMenubarUsage") private var showMenubarUsage = true
+
     @StateObject private var serverManager = HTTPServerManager.shared
 
     var body: some View {
@@ -273,6 +326,14 @@ struct IntegrationsSettingsView: View {
                 Text("Integrations")
                     .font(.title2)
                     .fontWeight(.semibold)
+
+                Section("Usage") {
+                    Toggle("Show remaining usage", isOn: $showMenubarUsage)
+
+                    Text("Shows Claude Code and Codex session and weekly percentages beside the bell.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
 
                 ClaudeCodeIntegrationView(port: serverManager.port)
 
@@ -673,7 +734,7 @@ struct OpenCodeIntegrationView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("OpenCode integration is no longer supported.")
+            Text("OpenCode is configured from the Coding Agents integration list.")
                 .font(.subheadline)
                 .foregroundColor(.secondary)
         }
